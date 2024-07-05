@@ -15,7 +15,7 @@ internal class Revolutionist : RoleBase
     private const int Id = 15200;
     private static readonly HashSet<byte> PlayerIds = [];
     public static bool HasEnabled => PlayerIds.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralChaos;
     //==================================================================\\
@@ -87,7 +87,7 @@ internal class Revolutionist : RoleBase
     }
     public override bool CanUseKillButton(PlayerControl pc) => !IsDrawDone(pc);
     public override bool CanUseImpostorVentButton(PlayerControl pc) => IsDrawDone(pc);
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
     {
         foreach (var x in RevolutionistStart.Keys.ToArray())
         {
@@ -231,9 +231,9 @@ internal class Revolutionist : RoleBase
                     ResetCurrentDrawTarget(playerId);
                     if (IRandom.Instance.Next(1, 100) <= RevolutionistKillProbability.GetInt())
                     {
-                        rv_target.SetRealKiller(player);
                         Main.PlayerStates[rvTargetId].deathReason = PlayerState.DeathReason.Sacrifice;
                         player.RpcMurderPlayer(rv_target);
+                        rv_target.SetRealKiller(player);
                         Main.PlayerStates[rvTargetId].SetDead();
                         Logger.Info($"Revolutionist: {player.GetNameWithRole()} killed by {rv_target.GetNameWithRole()}", "Revolutionist");
                     }

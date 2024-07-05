@@ -86,7 +86,7 @@
 > - Dark Theme
 > - Improved Role Spawns
 > - Some ideas to improve performance
-### :star: [TOHEX](https://github.com/TOHEX-Official/TownOfHostEdited-Xi)
+### :star: [TONEX (Formerly TOHEX)](https://github.com/XtremeWave/TownOfNewEpic_Xtreme)
 >
 > - Provided roles: Swapper, Berserker, Randomizer and Blackmailer
 > - Improve chat spam system (ChatManager.cs)
@@ -96,7 +96,12 @@
 ### :star: [Mini.RegionInstall](https://github.com/miniduikboot/Mini.RegionInstall)
 >
 > - Using Mini.RegionInstall to add modded server regions
-
+### :star: [TOU-R](https://github.com/eDonnes124/Town-Of-Us-R)
+>
+> - Host icon during the meeting
+### :star: [MoreGamemodes](https://github.com/Rabek009/MoreGamemodes)
+>
+> - Changer Role Basis (RoleBasisChanger.cs)
 ---
 
 # Legal License Notice

@@ -1,5 +1,7 @@
 ﻿using AmongUs.GameOptions;
 using Hazel;
+using InnerNet;
+using TOHE.Roles.Core;
 using UnityEngine;
 using static TOHE.Options;
 using static TOHE.Translator;
@@ -10,9 +12,7 @@ internal class Demon : RoleBase
 {
     //===========================SETUP================================\\
     private const int Id = 16200;
-    private static readonly HashSet<byte> playerIdList = [];
-    public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    public static bool HasEnabled => CustomRoleManager.HasEnabled(CustomRoles.Demon);
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralKilling;
     //==================================================================\\
@@ -46,17 +46,15 @@ internal class Demon : RoleBase
     }
     public override void Init()
     {
-        playerIdList.Clear();
         DemonHealth.Clear();
         PlayerHealth.Clear();
     }
     public override void Add(byte playerId)
     {
-        playerIdList.Add(playerId);
-        DemonHealth.TryAdd(playerId, SelfHealthMax.GetInt());
+        DemonHealth.Add(playerId, SelfHealthMax.GetInt());
 
         foreach (var pc in Main.AllAlivePlayerControls)
-            PlayerHealth.TryAdd(pc.PlayerId, HealthMax.GetInt());
+            PlayerHealth[pc.PlayerId] = HealthMax.GetInt();
 
         if (!AmongUsClient.Instance.AmHost) return;
         if (!Main.ResetCamPlayerList.Contains(playerId))
@@ -68,10 +66,10 @@ internal class Demon : RoleBase
     public override bool CanUseKillButton(PlayerControl pc) => true;
     public override bool CanUseImpostorVentButton(PlayerControl player) => CanVent.GetBool();
 
-    private static void SendRPC(byte playerId)
+    private void SendRPC(byte playerId)
     {
         MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SyncRoleSkill, SendOption.Reliable, -1);
-        writer.WritePacked((int)CustomRoles.Demon);
+        writer.WriteNetObject(_Player);
         writer.Write(playerId);
         if (DemonHealth.ContainsKey(playerId))
             writer.Write(DemonHealth[playerId]);
@@ -106,15 +104,15 @@ internal class Demon : RoleBase
         RPC.PlaySoundRPC(killer.PlayerId, Sounds.KillSound);
         Utils.NotifyRoles(SpecifySeer: killer);
 
-        Logger.Info($"{killer.GetNameWithRole()} 对玩家 {target.GetNameWithRole()} 造成了 {Damage.GetInt()} 点伤害", "Demon");
-        return true;
+        Logger.Info($"Demon {killer.GetRealName()} dealt {target.GetRealName()} damage equal to {Damage.GetInt()}", "Demon");
+        return false;
     }
     public override bool OnCheckMurderAsTarget(PlayerControl killer, PlayerControl target)
     {
-        if (target.Is(CustomRoles.Pestilence)) return true;
-        if (killer == null || target == null || !target.Is(CustomRoles.Demon) || killer.Is(CustomRoles.Demon)) return true;
+        if (killer.Is(CustomRoles.Pestilence)) return true;
+        if (killer == null || target == null) return true;
 
-        if (DemonHealth[target.PlayerId] - SelfDamage.GetInt() < 1)
+        if (DemonHealth.TryGetValue(target.PlayerId, out var Health) && Health - SelfDamage.GetInt() < 1)
         {
             DemonHealth.Remove(target.PlayerId);
             Utils.NotifyRoles(SpecifySeer: target);
@@ -123,13 +121,19 @@ internal class Demon : RoleBase
 
         killer.SetKillCooldown();
 
-        DemonHealth[target.PlayerId] -= SelfDamage.GetInt();
+        if (!DemonHealth.ContainsKey(target.PlayerId))
+        {
+            DemonHealth.Add(target.PlayerId, SelfHealthMax.GetInt());
+            Health = SelfHealthMax.GetInt();
+        }
+
+        DemonHealth[target.PlayerId] = Health - SelfDamage.GetInt();
         SendRPC(target.PlayerId);
         RPC.PlaySoundRPC(target.PlayerId, Sounds.KillSound);
         killer.RpcGuardAndKill(target);
         Utils.NotifyRoles(SpecifySeer: target);
 
-        Logger.Info($"{killer.GetNameWithRole()} 对玩家 {target.GetNameWithRole()} 造成了 {SelfDamage.GetInt()} 点伤害", "Demon");
+        Logger.Info($"{killer.GetRealName()} try kill {target.GetRealName()} but get damage {SelfDamage.GetInt()}", "Demon");
         return false;
     }
     public override string GetMark(PlayerControl seer, PlayerControl target = null, bool isForMeeting = false)
@@ -156,6 +160,6 @@ internal class Demon : RoleBase
     }
     public override void SetAbilityButtonText(HudManager hud, byte playerId)
     {
-        hud.KillButton.OverrideText(GetString("GamerButtonText"));
+        hud.KillButton.OverrideText(GetString("DemonButtonText"));
     }
 }

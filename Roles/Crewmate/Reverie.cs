@@ -10,7 +10,7 @@ internal class Reverie : RoleBase
     private const int Id = 11100;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateKilling;
     //==================================================================\\
@@ -62,7 +62,7 @@ internal class Reverie : RoleBase
         playerIdList.Remove(playerId);
         NowCooldown.Remove(playerId);
     }
-    public override void OnReportDeadBody(PlayerControl HES, PlayerControl HIM)
+    public override void OnReportDeadBody(PlayerControl HES, GameData.PlayerInfo HIM)
     {
         foreach (var playerId in NowCooldown.Keys)
         {

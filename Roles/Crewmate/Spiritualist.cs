@@ -10,7 +10,7 @@ internal class Spiritualist : RoleBase
     private const int Id = 9600;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateSupport;
     //==================================================================\\
@@ -66,7 +66,7 @@ internal class Spiritualist : RoleBase
         return false;
     }
 
-    public override void OnReportDeadBody(PlayerControl reported, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reported, GameData.PlayerInfo target)
     {
         if (target == null) return;
 

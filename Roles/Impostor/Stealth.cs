@@ -1,4 +1,6 @@
 ﻿using Hazel;
+using InnerNet;
+using TOHE.Roles.Core;
 using UnityEngine;
 
 namespace TOHE.Roles.Impostor;
@@ -8,9 +10,7 @@ internal class Stealth : RoleBase
 {
     //===========================SETUP================================\\
     private const int Id = 27400;
-    private static readonly HashSet<byte> playerIdList = [];
-    public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    public static bool HasEnabled => CustomRoleManager.HasEnabled(CustomRoles.Stealth);
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.ImpostorHindering;
     //==================================================================\\
@@ -20,9 +20,9 @@ internal class Stealth : RoleBase
 
     private static bool excludeImpostors;
     private static float darkenDuration;
-    private static float darkenTimer;
-    private static PlayerControl[] darkenedPlayers;
-    private static SystemTypes? darkenedRoom;
+    private float darkenTimer;
+    private PlayerControl[] darkenedPlayers;
+    private SystemTypes? darkenedRoom;
 
     public override void SetupCustomOption()
     {
@@ -33,18 +33,11 @@ internal class Stealth : RoleBase
             .SetParent(Options.CustomRoleSpawnChances[CustomRoles.Stealth])
             .SetValueFormat(OptionFormat.Seconds);
     }
-
-    public override void Init()
-    {
-        playerIdList.Clear();
-    }
     public override void Add(byte playerId)
     {
         excludeImpostors = optionExcludeImpostors.GetBool();
         darkenDuration = darkenTimer = optionDarkenDuration.GetFloat();
         darkenedPlayers = null;
-
-        playerIdList.Add(playerId);
     }
     public override bool OnCheckMurderAsKiller(PlayerControl killer, PlayerControl target)
     {
@@ -63,7 +56,7 @@ internal class Stealth : RoleBase
         return true;
     }
     /// <summary>Get all players in the same room as you</summary>
-    private static PlayerControl[] FindPlayersInSameRoom(PlayerControl killedPlayer)
+    private PlayerControl[] FindPlayersInSameRoom(PlayerControl killedPlayer)
     {
         var room = killedPlayer.GetPlainShipRoom();
         if (room == null)
@@ -73,10 +66,10 @@ internal class Stealth : RoleBase
         var roomArea = room.roomArea;
         var roomName = room.RoomId;
         RpcDarken(roomName);
-        return Main.AllAlivePlayerControls.Where(player => player != Utils.GetPlayerById(playerIdList.First()) && player.Collider.IsTouching(roomArea)).ToArray();
+        return Main.AllAlivePlayerControls.Where(player => player != _Player && player.Collider.IsTouching(roomArea)).ToArray();
     }
     /// <summary>Give the given player zero visibility for <see cref="darkenDuration"/> seconds.</summary>
-    private static void DarkenPlayers(PlayerControl[] playersToDarken)
+    private void DarkenPlayers(PlayerControl[] playersToDarken)
     {
         darkenedPlayers = [.. playersToDarken];
         foreach (PlayerControl player in playersToDarken)
@@ -98,23 +91,23 @@ internal class Stealth : RoleBase
             ResetDarkenState();
         }
     }
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
     {
         if (AmongUsClient.Instance.AmHost)
         {
             ResetDarkenState();
         }
     }
-    private static void RpcDarken(SystemTypes? roomType)
+    private void RpcDarken(SystemTypes? roomType)
     {
         Logger.Info($"Set the darkened room to {roomType?.ToString() ?? "null"}", "Stealth");
         darkenedRoom = roomType;
         SendRPC(roomType);
     }
-    private static void SendRPC(SystemTypes? roomType)
+    private void SendRPC(SystemTypes? roomType)
     {
         MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SyncRoleSkill, SendOption.Reliable, -1);
-        writer.WritePacked((int)CustomRoles.Stealth);
+        writer.WriteNetObject(_Player);
         writer.Write((byte?)roomType ?? byte.MaxValue);
         AmongUsClient.Instance.FinishRpcImmediately(writer);
     }
@@ -124,7 +117,7 @@ internal class Stealth : RoleBase
         darkenedRoom = roomId == byte.MaxValue ? null : (SystemTypes)roomId;
     }
     /// <summary>Removes the darkening effect that has occurred.</summary>
-    private static void ResetDarkenState()
+    private void ResetDarkenState()
     {
         if (darkenedPlayers != null)
         {
@@ -137,12 +130,12 @@ internal class Stealth : RoleBase
         }
         darkenTimer = darkenDuration;
         RpcDarken(null);
-        Utils.NotifyRoles(SpecifySeer: Utils.GetPlayerById(playerIdList.First()), SpecifyTarget: Utils.GetPlayerById(playerIdList.First()));
+        Utils.NotifyRoles(SpecifySeer: _Player, SpecifyTarget: _Player);
     }
     public override string GetLowerText(PlayerControl seer, PlayerControl seen = null, bool isForMeeting = false, bool isForHud = false)
     {
         seen ??= seer;
-        var Player = Utils.GetPlayerById(playerIdList.First());
+        var Player = _Player;
 
         // During the meeting, unless it's my suffix or it's dark everywhere, I won't show anything.
         if (!HasEnabled || isForMeeting || seer != Player || seen != Player || !darkenedRoom.HasValue)

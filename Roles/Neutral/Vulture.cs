@@ -14,7 +14,7 @@ internal class Vulture : RoleBase
     private const int Id = 15600;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CanVent.GetBool() ? CustomRoles.Engineer : CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralChaos;
     //==================================================================\\
@@ -76,7 +76,7 @@ internal class Vulture : RoleBase
     public override void ApplyGameOptions(IGameOptions opt, byte id)
     {
         opt.SetVision(HasImpVision.GetBool());
-        AURoleOptions.EngineerCooldown = 0f;
+        AURoleOptions.EngineerCooldown = 1f;
         AURoleOptions.EngineerInVentMaxTime = 0f;
     }
 
@@ -146,7 +146,7 @@ internal class Vulture : RoleBase
             {
                 LastReport[reporterId] = now;
 
-                OnEatDeadBody(reporter, deadBody.Object);
+                OnEatDeadBody(reporter, deadBody);
                 reporter.RpcGuardAndKill(reporter);
                 reporter.Notify(GetString("VultureReportBody"));
                 if (AbilityLeftInRound[reporterId] > 0)
@@ -168,7 +168,7 @@ internal class Vulture : RoleBase
         }
         return true;
     }
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
     {
         foreach (var apc in playerIdList)
         {
@@ -176,16 +176,16 @@ internal class Vulture : RoleBase
             SendRPC(apc, false);
         }
     }
-    public static void OnEatDeadBody(PlayerControl pc, PlayerControl target)
+    private static void OnEatDeadBody(PlayerControl pc, GameData.PlayerInfo target)
     {       
         BodyReportCount[pc.PlayerId]++;
         AbilityLeftInRound[pc.PlayerId]--;
-        Logger.Msg($"target.object {target.Data}, is null? {target == null}", "VultureNull");
+        Logger.Msg($"target is null? {target == null}", "VultureNull");
         if (target != null)
         {
             foreach (var apc in playerIdList)
             {
-                LocateArrow.Remove(apc, target.transform.position);
+                LocateArrow.Remove(apc, target.Object.transform.position);
                 SendRPC(apc, false);
             }
         }
@@ -231,7 +231,7 @@ internal class Vulture : RoleBase
     }
     private void CheckDeadBody(PlayerControl killer, PlayerControl target, bool inMeeting)
     {
-        if (inMeeting) return;
+        if (inMeeting || target.IsDisconnected()) return;
         if (!ArrowsPointingToDeadBody.GetBool()) return;
 
         Vector2 pos = target.transform.position;

@@ -10,6 +10,7 @@ using TOHE.Roles.Neutral;
 using UnityEngine;
 using static TOHE.Translator;
 using TOHE.Roles.Crewmate;
+using TOHE.Roles.Core;
 
 namespace TOHE;
 
@@ -24,34 +25,34 @@ class EndGamePatch
 
         // if game is H&S or Host no have mod
         if (!GameStates.IsModHost || GameStates.IsHideNSeek) return;
-        
+
+        Logger.Info("-----------Game over-----------", "Phase");
+
         try
         {
-            foreach (var pvc in GhostRoleAssign.GhostGetPreviousRole.Keys) // Sets role back to original so it shows up in /l results.
+            if (AmongUsClient.Instance.AmHost)
             {
-                var plr = Utils.GetPlayerById(pvc);
-                if (plr == null || !plr.GetCustomRole().IsGhostRole()) continue;
-
-                CustomRoles prevrole = GhostRoleAssign.GhostGetPreviousRole[pvc];
-                Main.PlayerStates[pvc].SetMainRole(prevrole);
-
-                if (AmongUsClient.Instance.AmHost)
+                foreach (var pvc in GhostRoleAssign.GhostGetPreviousRole.Keys) // Sets role back to original so it shows up in /l results.
                 {
-                    MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SetCustomRole, SendOption.Reliable, -1);
+                    if (!Main.PlayerStates.TryGetValue(pvc, out var state) || !state.MainRole.IsGhostRole()) continue;
+                    if (!GhostRoleAssign.GhostGetPreviousRole.TryGetValue(pvc, out CustomRoles prevrole)) continue;
+
+                    Main.PlayerStates[pvc].MainRole = prevrole;
+
+                    MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SyncPlayerSetting, SendOption.Reliable, -1);
                     writer.Write(pvc);
                     writer.WritePacked((int)prevrole);
                     AmongUsClient.Instance.FinishRpcImmediately(writer);
                 }
-            }
-            if (GhostRoleAssign.GhostGetPreviousRole.Any()) Logger.Info(string.Join(", ", GhostRoleAssign.GhostGetPreviousRole.Select(x => $"{Utils.GetPlayerById(x.Key).GetRealName()}/{x.Value}")), "OutroPatch.GhostGetPreviousRole");
-            // Seems to be a problem with Exiled() Patch. I plan to diligently attempt fixes in RoleBase PR.
-        }
-        catch(Exception e)
-        {
-            Logger.Warn($"{e} at EndGamePatch", "GhostGetPreviousRole");
-        }
 
-        Logger.Info("-----------Game over-----------", "Phase");
+                if (GhostRoleAssign.GhostGetPreviousRole.Any()) Logger.Info(string.Join(", ", GhostRoleAssign.GhostGetPreviousRole.Select(x => $"{Utils.GetPlayerById(x.Key).GetRealName()}/{x.Value}")), "OutroPatch.GhostGetPreviousRole");
+            }
+
+        }
+        catch (Exception e)
+        {
+            Logger.Error($"{e} at EndGamePatch", "GhostGetPreviousRole");
+        }
 
         SummaryText = [];
 
@@ -72,16 +73,35 @@ class EndGamePatch
             SummaryText[id] = Utils.SummaryTexts(id, disableColor: false);
         }
 
+        CustomRoleManager.RoleClass.Values.Where(x => x.IsEnable).Do(x => x.IsEnable = false);
+
         var sb = new StringBuilder(GetString("KillLog") + ":");
-        foreach (var kvp in Main.PlayerStates.OrderBy(x => x.Value.RealKiller.Item1.Ticks))
+        if (Options.OldKillLog.GetBool())
+            foreach (var kvp in Main.PlayerStates.OrderBy(x => x.Value.RealKiller.Item1.Ticks))
+            {
+                var date = kvp.Value.RealKiller.Item1;
+                if (date == DateTime.MinValue) continue;
+                var killerId = kvp.Value.GetRealKiller();
+                var targetId = kvp.Key;
+                sb.Append($"\n{date:T} {Main.AllPlayerNames[targetId]}({(Options.CurrentGameMode == CustomGameMode.FFA ? string.Empty : Utils.GetDisplayRoleAndSubName(targetId, targetId, true))}{(Options.CurrentGameMode == CustomGameMode.FFA ? string.Empty : Utils.GetSubRolesText(targetId, summary: true))}) [{Utils.GetVitalText(kvp.Key)}]");
+                if (killerId != byte.MaxValue && killerId != targetId)
+                    sb.Append($"\n\t⇐ {Main.AllPlayerNames[killerId]}({(Options.CurrentGameMode == CustomGameMode.FFA ? string.Empty : Utils.GetDisplayRoleAndSubName(killerId, killerId, true))}{(Options.CurrentGameMode == CustomGameMode.FFA ? string.Empty : Utils.GetSubRolesText(killerId, summary: true))})");
+            }
+        else
         {
-            var date = kvp.Value.RealKiller.Item1;
-            if (date == DateTime.MinValue) continue;
-            var killerId = kvp.Value.GetRealKiller();
-            var targetId = kvp.Key;
-            sb.Append($"\n{date:T} {Main.AllPlayerNames[targetId]}({(Options.CurrentGameMode == CustomGameMode.FFA ? string.Empty : Utils.GetDisplayRoleAndSubName(targetId, targetId, true))}{(Options.CurrentGameMode == CustomGameMode.FFA ? string.Empty : Utils.GetSubRolesText(targetId, summary: true))}) [{Utils.GetVitalText(kvp.Key)}]");
-            if (killerId != byte.MaxValue && killerId != targetId)
-                sb.Append($"\n\t⇐ {Main.AllPlayerNames[killerId]}({(Options.CurrentGameMode == CustomGameMode.FFA ? string.Empty : Utils.GetDisplayRoleAndSubName(killerId, killerId, true))}{(Options.CurrentGameMode == CustomGameMode.FFA ? string.Empty : Utils.GetSubRolesText(killerId, summary: true))})");
+            sb.Clear();
+            foreach (var kvp in Main.PlayerStates.OrderBy(x => x.Value.RealKiller.Item1.Ticks))
+            {
+                var date = kvp.Value.RealKiller.Item1;
+                if (date == DateTime.MinValue) continue;
+                var killerId = kvp.Value.GetRealKiller();
+                var targetId = kvp.Key;
+
+                sb.Append($"\n<line-height=85%><size=85%><voffset=-1em><color=#9c9c9c>{date:T}</color> {Main.AllPlayerNames[targetId]}({(Options.CurrentGameMode == CustomGameMode.FFA ? string.Empty : Utils.GetDisplayRoleAndSubName(targetId, targetId, true))}{(Options.CurrentGameMode == CustomGameMode.FFA ? string.Empty : Utils.GetSubRolesText(targetId, summary: true))}) 『{Utils.GetVitalText(kvp.Key, true)}』</voffset></size></line-height>");
+                if (killerId != byte.MaxValue && killerId != targetId)
+                    sb.Append($"<br>\t⇐ {Main.AllPlayerNames[killerId]}({(Options.CurrentGameMode == CustomGameMode.FFA ? string.Empty : Utils.GetDisplayRoleAndSubName(killerId, killerId, true))}{(Options.CurrentGameMode == CustomGameMode.FFA ? string.Empty : Utils.GetSubRolesText(killerId, summary: true))})");
+            }
+            
         }
         KillLog = sb.ToString();
         if (!KillLog.Contains('\n')) KillLog = "";

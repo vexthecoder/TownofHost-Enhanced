@@ -10,7 +10,7 @@ internal class Berserker : RoleBase
 
     private static readonly HashSet<byte> PlayerIds = [];
     public static bool HasEnabled => PlayerIds.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.ImpostorKilling;
     //==================================================================\\
@@ -134,8 +134,8 @@ internal class Berserker : RoleBase
                 if (Vector2.Distance(killer.transform.position, player.transform.position) <= Bomber.BomberRadius.GetFloat())
                 {
                     Main.PlayerStates[player.PlayerId].deathReason = PlayerState.DeathReason.Bombed;
-                    player.SetRealKiller(killer);
                     player.RpcMurderPlayer(player);
+                    player.SetRealKiller(killer);
                 }
             }
         }

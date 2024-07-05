@@ -10,7 +10,7 @@ internal class Necromancer : RoleBase
     private const int Id = 17100;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralKilling;
     //==================================================================\\
@@ -102,8 +102,7 @@ internal class Necromancer : RoleBase
     }
     public override bool OnCheckMurderAsKiller(PlayerControl killer, PlayerControl target)
     {
-        if (killer == null) return false;
-        if (target == null) return false;
+        if (killer == null || target == null || !killer.IsAlive()) return false;
 
         if (!IsRevenge) return true;
         else if (target == Killer)

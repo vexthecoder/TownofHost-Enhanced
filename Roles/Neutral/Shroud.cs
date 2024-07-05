@@ -1,10 +1,12 @@
 using AmongUs.GameOptions;
 using Hazel;
+using InnerNet;
 using TOHE.Roles.Core;
 using TOHE.Roles.Double;
 using UnityEngine;
 using static TOHE.Options;
 using static TOHE.Translator;
+
 
 namespace TOHE.Roles.Neutral;
 
@@ -12,9 +14,7 @@ internal class Shroud : RoleBase
 {
     //===========================SETUP================================\\
     private const int Id = 18000;
-    private static readonly HashSet<byte> PlayerIds = [];
-    public static bool HasEnabled => PlayerIds.Any();
-    public override bool IsEnable => HasEnabled;
+    public static bool HasEnabled => CustomRoleManager.HasEnabled(CustomRoles.Shroud);
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralKilling;
     //==================================================================\\
@@ -35,23 +35,20 @@ internal class Shroud : RoleBase
     }
     public override void Init()
     {
-        PlayerIds.Clear();
         ShroudList.Clear();
     }
     public override void Add(byte playerId)
     {
-        PlayerIds.Add(playerId);
         CustomRoleManager.OnFixedUpdateOthers.Add(OnFixedUpdateOthers);
-        CustomRoleManager.MarkOthers.Add(GetShroudMark);
 
         if (!AmongUsClient.Instance.AmHost) return;
         if (!Main.ResetCamPlayerList.Contains(playerId))
             Main.ResetCamPlayerList.Add(playerId);
     }
-    private static void SendRPC(byte shroudId, byte targetId, byte typeId)
+    private void SendRPC(byte shroudId, byte targetId, byte typeId)
     {
         MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SyncRoleSkill, SendOption.Reliable, -1);
-        writer.WritePacked((int)CustomRoles.Shroud); // syncShroud
+        writer.WriteNetObject(_Player); // syncShroud
         writer.Write(typeId);
         writer.Write(shroudId);
         writer.Write(targetId);
@@ -87,6 +84,7 @@ internal class Shroud : RoleBase
 
     public override bool OnCheckMurderAsKiller(PlayerControl killer, PlayerControl target)
     {
+        if (ShroudList.ContainsKey(target.PlayerId)) return false;
         if (target.Is(CustomRoles.NiceMini) && Mini.Age < 18)
         {
             killer.Notify(Utils.ColorString(Utils.GetRoleColor(CustomRoles.NiceMini), GetString("CantShroud")));
@@ -102,13 +100,14 @@ internal class Shroud : RoleBase
         return false;
     }
 
-    private static void OnFixedUpdateOthers(PlayerControl shroud)
+    private void OnFixedUpdateOthers(PlayerControl shroud)
     {
         if (!ShroudList.ContainsKey(shroud.PlayerId)) return;
 
         if (!shroud.IsAlive() || Pelican.IsEaten(shroud.PlayerId))
         {
             ShroudList.Remove(shroud.PlayerId);
+            SendRPC(byte.MaxValue, shroud.PlayerId, 2);
         }
         else
         {
@@ -134,14 +133,14 @@ internal class Shroud : RoleBase
                     {
                         var shroudId = ShroudList[shroud.PlayerId];
                         RPC.PlaySoundRPC(shroudId, Sounds.KillSound);
-                        target.SetRealKiller(Utils.GetPlayerById(shroudId));
                         Main.PlayerStates[target.PlayerId].deathReason = PlayerState.DeathReason.Shrouded;
                         shroud.RpcMurderPlayer(target);
+                        target.SetRealKiller(Utils.GetPlayerById(shroudId));
                         Utils.MarkEveryoneDirtySettings();
                         ShroudList.Remove(shroud.PlayerId);
                         SendRPC(byte.MaxValue, shroud.PlayerId, 2);
                         //Utils.NotifyRoles(SpecifySeer: shroud);
-                        Utils.NotifyRoles(Utils.GetPlayerById(shroudId), SpecifyTarget: shroud, ForceLoop: true);
+                        Utils.NotifyRoles(SpecifySeer: Utils.GetPlayerById(shroudId), SpecifyTarget: shroud, ForceLoop: true);
                     }
                 }
             }
@@ -152,29 +151,29 @@ internal class Shroud : RoleBase
     {
         if (!shroud.IsAlive())
         {
-            ShroudList.Remove(shroud.PlayerId);
-            SendRPC(byte.MaxValue, shroud.PlayerId, 2);
+            ShroudList.Clear();
+            SendRPC(byte.MaxValue, byte.MaxValue, 1);
             return;
         }
 
         foreach (var shroudedId in ShroudList.Keys)
         {
             PlayerControl shrouded = Utils.GetPlayerById(shroudedId);
-            if (shrouded == null) continue;
+            if (!shrouded.IsAlive()) continue;
 
             Main.PlayerStates[shrouded.PlayerId].deathReason = PlayerState.DeathReason.Shrouded;
             shrouded.RpcMurderPlayer(shrouded);
+            shrouded.SetRealKiller(shroud);
 
             ShroudList.Remove(shrouded.PlayerId);
             SendRPC(byte.MaxValue, shrouded.PlayerId, 2);
         }
     }
 
-    public override string GetMark(PlayerControl seer, PlayerControl target = null, bool isForMeeting = false)
-        => target != null && (ShroudList.ContainsValue(seer.PlayerId) && ShroudList.ContainsKey(target.PlayerId)) ? Utils.ColorString(Utils.GetRoleColor(CustomRoles.Shroud), "◈") : string.Empty;
+    public override string GetMarkOthers(PlayerControl seer, PlayerControl target, bool isMeeting = false)
+        => isMeeting && ShroudList.ContainsKey(target.PlayerId) ? Utils.ColorString(Utils.GetRoleColor(CustomRoles.Shroud), "◈") : string.Empty;
     
-    private static string GetShroudMark(PlayerControl seer, PlayerControl target, bool isMeeting)
-        => isMeeting && target != null && ShroudList.ContainsKey(target.PlayerId) ? Utils.ColorString(Utils.GetRoleColor(CustomRoles.Shroud), "◈") : string.Empty;
+        
 
     public override void SetAbilityButtonText(HudManager hud, byte playerId)
     {

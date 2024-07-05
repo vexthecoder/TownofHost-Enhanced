@@ -10,7 +10,6 @@ internal class CopyCat : RoleBase
     private const int Id = 11500;
     public static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmatePower;
     //==================================================================\\
@@ -59,7 +58,7 @@ internal class CopyCat : RoleBase
         foreach (var player in playerIdList.ToArray())
         {
             var pc = Utils.GetPlayerById(player);
-            if (pc == null) continue;
+            if (!pc.IsAlive()) continue;
             ////////////           /*remove the settings for current role*/             /////////////////////
             
             var pcRole = pc.GetCustomRole();
@@ -87,6 +86,11 @@ internal class CopyCat : RoleBase
             CustomRoles.Addict or
             CustomRoles.Chameleon or
             CustomRoles.Alchemist or
+            CustomRoles.Doomsayer or // CopyCat cannot guessed roles because he can be know others roles players
+            CustomRoles.EvilGuesser or
+            CustomRoles.NiceGuesser or
+            CustomRoles.Captain or
+            CustomRoles.Medic or // Bcz the medic is limited to only one player
             CustomRoles.TimeMaster or
             CustomRoles.Mole;
         //bcoz of single role
@@ -132,10 +136,10 @@ internal class CopyCat : RoleBase
                 case CustomRoles.Juggernaut:
                     role = CustomRoles.Reverie;
                     break;
-                case CustomRoles.EvilGuesser:
-                case CustomRoles.Doomsayer:
-                    role = CustomRoles.NiceGuesser;
-                    break;
+                //case CustomRoles.EvilGuesser:
+                //case CustomRoles.Doomsayer:
+                //    role = CustomRoles.NiceGuesser;
+                //    break;
                 case CustomRoles.Taskinator:
                     role = CustomRoles.Benefactor;
                     break;
@@ -156,7 +160,7 @@ internal class CopyCat : RoleBase
             if (role != CustomRoles.CopyCat)
             {
                 killer.RpcSetCustomRole(role);
-                killer.GetRoleClass()?.Add(killer.PlayerId);
+                killer.GetRoleClass()?.OnAdd(killer.PlayerId);
             }
             if (CopyTeamChangingAddon.GetBool())
             {

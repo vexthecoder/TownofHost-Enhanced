@@ -22,7 +22,7 @@ public static class GameStartManagerUpdatePatch
 public class GameStartManagerPatch
 {
     private static SpriteRenderer cancelButton;
-    private static float timer = 600f;
+    public static float timer = 600f;
     [HarmonyPatch(typeof(GameStartManager), nameof(GameStartManager.Start))]
     public class GameStartManagerStartPatch
     {
@@ -95,6 +95,7 @@ public class GameStartManagerPatch
         private static int minPlayer;
         public static void Prefix(GameStartManager __instance)
         {
+            if (__instance == null) return;
             minWait = Options.MinWaitAutoStart.GetFloat();
             maxWait = Options.MaxWaitAutoStart.GetFloat();
             minPlayer = Options.PlayerAutoStart.GetInt();
@@ -112,7 +113,7 @@ public class GameStartManagerPatch
                 GameStartManagerStartPatch.HideName.enabled = false;
             }
 
-            update = GameData.Instance.PlayerCount != __instance.LastPlayerCount;
+            update = GameData.Instance?.PlayerCount != __instance.LastPlayerCount;
             if (!AmongUsClient.Instance.AmHost || !GameData.Instance || AmongUsClient.Instance.NetworkMode == NetworkModes.LocalGame) return; // Not host or no instance or LocalGame
 
             if (Main.AutoStart.Value)
@@ -121,43 +122,22 @@ public class GameStartManagerPatch
                 if (Main.updateTime >= 50)
                 {
                     Main.updateTime = 0;
-                    if (((GameData.Instance.PlayerCount >= minPlayer && timer <= minWait) || timer <= maxWait) && !GameStates.IsCountDown)
+                    if (!GameStates.IsCountDown)
                     {
-                        _ = new LateTask(() =>
+                        if ((GameData.Instance.PlayerCount >= minPlayer && timer <= minWait) || timer <= maxWait)
                         {
-                            var invalidColor = Main.AllPlayerControls.Where(p => p.Data.DefaultOutfit.ColorId < 0 || Palette.PlayerColors.Length <= p.Data.DefaultOutfit.ColorId).ToArray();
-
-                            if (invalidColor.Any())
+                            BeginAutoStart(Options.AutoStartTimer.GetInt());
+                            return;
+                        }
+                        else if (Options.ImmediateAutoStart.GetBool())
+                        {
+                            if ((GameData.Instance.PlayerCount >= Options.StartWhenPlayersReach.GetInt() && Options.StartWhenPlayersReach.GetInt() > 1) ||
+                                (timer <= Options.StartWhenTimerLowerThan.GetInt() && Options.StartWhenTimerLowerThan.GetInt() > 0))
                             {
-                                invalidColor.Do(p => AmongUsClient.Instance.KickPlayer(p.GetClientId(), false));
-
-                                Logger.SendInGame(GetString("Error.InvalidColorPreventStart"));
-                                var msg = GetString("Error.InvalidColor");
-                                msg += "\n" + string.Join(",", invalidColor.Select(p => $"{p.GetRealName()}"));
-                                Utils.SendMessage(msg);
+                                BeginAutoStart(Options.AutoStartTimer.GetInt());
+                                return;
                             }
-
-                            if (Options.RandomMapsMode.GetBool())
-                            {
-                                if (GameStates.IsNormalGame)
-                                    Main.NormalOptions.MapId = GameStartRandomMap.SelectRandomMap();
-
-                                else if (GameStates.IsHideNSeek)
-                                    Main.HideNSeekOptions.MapId = GameStartRandomMap.SelectRandomMap();
-                            }
-
-                            //if (GameStates.IsNormalGame && Options.IsActiveDleks)
-                            //{
-                            //    Logger.SendInGame(GetString("Warning.BrokenVentsInDleksSendInGame"));
-                            //    Utils.SendMessage(GetString("Warning.BrokenVentsInDleksMessage"), title: Utils.ColorString(Utils.GetRoleColor(CustomRoles.NiceMini), GetString("WarningTitle")));
-                            //}
-
-                            RPC.RpcVersionCheck();
-
-                            GameStartManager.Instance.startState = GameStartManager.StartingStates.Countdown;
-                            GameStartManager.Instance.countDownTimer = Options.AutoStartTimer.GetInt();
-                            __instance.StartButton.gameObject.SetActive(false);
-                        }, 0.8f, "Auto Start");
+                        }
                     }
                 }
             }
@@ -218,7 +198,7 @@ public class GameStartManagerPatch
             }
 
             // Lobby timer
-            if (!GameData.Instance || AmongUsClient.Instance.NetworkMode == NetworkModes.LocalGame) return;
+            if (!GameData.Instance || AmongUsClient.Instance.NetworkMode == NetworkModes.LocalGame || !GameStates.IsVanillaServer) return;
 
             if (update) currentText = __instance.PlayerCounter.text;
 
@@ -231,6 +211,45 @@ public class GameStartManagerPatch
             __instance.PlayerCounter.text = currentText + suffix;
             __instance.PlayerCounter.fontSize = 3f;
             __instance.PlayerCounter.autoSizeTextContainer = false;
+        }
+
+        private static void BeginAutoStart(float countdown)
+        {
+            _ = new LateTask(() =>
+            {
+                var invalidColor = Main.AllPlayerControls.Where(p => p.Data.DefaultOutfit.ColorId < 0 || Palette.PlayerColors.Length <= p.Data.DefaultOutfit.ColorId).ToArray();
+
+                if (invalidColor.Any())
+                {
+                    invalidColor.Do(p => AmongUsClient.Instance.KickPlayer(p.GetClientId(), false));
+
+                    Logger.SendInGame(GetString("Error.InvalidColorPreventStart"));
+                    var msg = GetString("Error.InvalidColor");
+                    msg += "\n" + string.Join(",", invalidColor.Select(p => $"{p.GetRealName()}"));
+                    Utils.SendMessage(msg);
+                }
+
+                if (Options.RandomMapsMode.GetBool())
+                {
+                    if (GameStates.IsNormalGame)
+                        Main.NormalOptions.MapId = GameStartRandomMap.SelectRandomMap();
+
+                    else if (GameStates.IsHideNSeek)
+                        Main.HideNSeekOptions.MapId = GameStartRandomMap.SelectRandomMap();
+                }
+
+                //if (GameStates.IsNormalGame && Options.IsActiveDleks)
+                //{
+                //    Logger.SendInGame(GetString("Warning.BrokenVentsInDleksSendInGame"));
+                //    Utils.SendMessage(GetString("Warning.BrokenVentsInDleksMessage"), title: Utils.ColorString(Utils.GetRoleColor(CustomRoles.NiceMini), GetString("WarningTitle")));
+                //}
+
+                RPC.RpcVersionCheck();
+
+                GameStartManager.Instance.startState = GameStartManager.StartingStates.Countdown;
+                GameStartManager.Instance.countDownTimer = (countdown == 0 ? 0.2f : countdown);
+                GameStartManager.Instance.StartButton.gameObject.SetActive(false);
+            }, 0.8f, "Auto Start");
         }
         private static bool MatchVersions(int clientId, bool acceptVanilla = false)
         {
@@ -337,7 +356,7 @@ public class GameStartRandomMap
 
         if (randomMaps.Any())
         {
-            var mapsId = randomMaps[rand.Next(randomMaps.Count)];
+            var mapsId = randomMaps.RandomElement();
 
             Logger.Info($"{mapsId}", "Chance Select MapId");
             return mapsId;
@@ -351,7 +370,7 @@ public class GameStartRandomMap
             if (Options.AirshipChance.GetInt() > 0) randomMaps.Add(4);
             if (Options.FungleChance.GetInt() > 0) randomMaps.Add(5);
 
-            var mapsId = randomMaps[rand.Next(randomMaps.Count)];
+            var mapsId = randomMaps.RandomElement();
 
             Logger.Info($"{mapsId}", "Random Select MapId");
             return mapsId;
@@ -377,14 +396,7 @@ class UnrestrictedNumImpostorsPatch
 {
     public static bool Prefix(ref int __result)
     {
-        if (GameStates.IsNormalGame)
-        {
-            __result = Main.NormalOptions.NumImpostors;
-        }
-        else if (GameStates.IsHideNSeek)
-        {
-            __result = Main.HideNSeekOptions.NumImpostors;
-        }
+        __result = GameOptionsManager.Instance.CurrentGameOptions.NumImpostors;
         return false;
     }
 }

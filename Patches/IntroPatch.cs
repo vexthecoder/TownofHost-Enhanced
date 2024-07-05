@@ -4,6 +4,9 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using TOHE.Modules;
+using TOHE.Roles.Core;
+using TOHE.Roles.Core.AssignManager;
 using TOHE.Roles.Neutral;
 using UnityEngine;
 using static TOHE.Translator;
@@ -13,9 +16,15 @@ namespace TOHE;
 [HarmonyPatch(typeof(IntroCutscene), nameof(IntroCutscene.ShowRole))]
 class SetUpRoleTextPatch
 {
+    public static bool IsInIntro = false;
+
     public static void Postfix(IntroCutscene __instance)
     {
         if (!GameStates.IsModHost) return;
+
+        // After showing team for non-modded clients update player names.
+        IsInIntro = false;
+        Utils.NotifyRoles(NoCache: true);
 
         _ = new LateTask(() =>
         {
@@ -44,9 +53,6 @@ class SetUpRoleTextPatch
                 foreach (var subRole in Main.PlayerStates[localPlayer.PlayerId].SubRoles.ToArray())
                     __instance.RoleBlurbText.text += "\n" + Utils.ColorString(Utils.GetRoleColor(subRole), GetString($"{subRole}Info"));
 
-                if (!localPlayer.Is(CustomRoles.Lovers) && !localPlayer.Is(CustomRoles.Ntr) && CustomRoles.Ntr.RoleExist())
-                    __instance.RoleBlurbText.text += "\n" + Utils.ColorString(Utils.GetRoleColor(CustomRoles.Lovers), GetString($"{CustomRoles.Lovers}Info"));
-
                 __instance.RoleText.text += Utils.GetSubRolesText(localPlayer.PlayerId, false, true);
             }
         }, 0.0001f, "Override Role Text");
@@ -57,11 +63,11 @@ class CoBeginPatch
 {
     public static void Prefix()
     {
+        if (RoleBasisChanger.IsChangeInProgress) return;
+
         var logger = Logger.Handler("Info");
 
-        var allPlayerControlsArray = Main.AllPlayerControls.ToArray();
-
-        Main.AssignRolesIsStarted = false;
+        var allPlayerControlsArray = Main.AllPlayerControls;
 
         logger.Info("------------Player Names------------");
         foreach ( var pc in allPlayerControlsArray)
@@ -523,7 +529,7 @@ class IntroCutsceneDestroyPatch
 {
     public static void Postfix()
     {
-        if (!GameStates.IsInGame) return;
+        if (!GameStates.IsInGame || RoleBasisChanger.SkipTasksAfterAssignRole) return;
 
         Main.introDestroyed = true;
 
@@ -534,6 +540,8 @@ class IntroCutsceneDestroyPatch
                 state.HasSpawned = true;
             }
         }
+
+        CustomRoleManager.Add();
 
         if (AmongUsClient.Instance.AmHost)
         {
@@ -554,13 +562,25 @@ class IntroCutsceneDestroyPatch
 
                 _ = new LateTask(() => Main.AllPlayerControls.Do(pc => pc.RpcSetRoleDesync(RoleTypes.Shapeshifter, -3)), 2f, "Set Impostor For Server");
             }
-            var ghostUP = PlayerControl.LocalPlayer.GetCustomRole();
-            var checkGhostRole = CustomRolesHelper.IsGhostRole(ghostUP);
 
-            if (PlayerControl.LocalPlayer.Is(CustomRoles.GM) || checkGhostRole) // Incase user has /up access
+            if (PlayerControl.LocalPlayer.Is(CustomRoles.GM)) // Incase user has /up access
             {
                 PlayerControl.LocalPlayer.RpcExile();
                 Main.PlayerStates[PlayerControl.LocalPlayer.PlayerId].SetDead();
+            }
+            else if (GhostRoleAssign.forceRole.Any())
+            {
+                // Needs to be delayed for the game to load it properly
+                _ = new LateTask(() =>
+                {
+                    GhostRoleAssign.forceRole.Do(x =>
+                    {
+                        var plr = Utils.GetPlayerById(x.Key);
+                        plr.RpcExile();
+                        Main.PlayerStates[x.Key].SetDead();
+
+                    });
+                }, 3f, "Set Dev Ghost-Roles");
             }
 
             if (GameStates.IsNormalGame && (RandomSpawn.IsRandomSpawn() || Options.CurrentGameMode == CustomGameMode.FFA))

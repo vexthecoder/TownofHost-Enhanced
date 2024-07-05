@@ -12,7 +12,7 @@ internal class Mortician : RoleBase
     private const int Id = 8900;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateSupport;
     //==================================================================\\
@@ -71,7 +71,7 @@ internal class Mortician : RoleBase
     }
     private void CheckDeadBody(PlayerControl killer, PlayerControl target, bool inMeeting)
     {
-        if (inMeeting) return;
+        if (inMeeting || target.IsDisconnected()) return;
 
         Vector2 pos = target.transform.position;
         float minDis = float.MaxValue;
@@ -96,7 +96,7 @@ internal class Mortician : RoleBase
             SendRPC(pc, true, target.transform.position);
         }
     }
-    public override void OnReportDeadBody(PlayerControl pc, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl pc, GameData.PlayerInfo target)
     {
         foreach (var apc in playerIdList.ToArray())
         {
@@ -104,10 +104,10 @@ internal class Mortician : RoleBase
             SendRPC(apc, false);
         }
 
-        if (!pc.Is(CustomRoles.Mortician) || target == null || pc.PlayerId == target.PlayerId) return;
+        if (!pc.Is(CustomRoles.Mortician) || target == null || target.Object == null || pc.PlayerId == target.PlayerId) return;
         lastPlayerName.TryGetValue(target.PlayerId, out var name);
-        if (name == "") msgToSend.Add(pc.PlayerId, string.Format(GetString("MorticianGetNoInfo"), target.GetRealName()));
-        else msgToSend.Add(pc.PlayerId, string.Format(GetString("MorticianGetInfo"), target.GetRealName(), name));
+        if (name == "") msgToSend.Add(pc.PlayerId, string.Format(GetString("MorticianGetNoInfo"), target.Object.GetRealName()));
+        else msgToSend.Add(pc.PlayerId, string.Format(GetString("MorticianGetInfo"), target.Object.GetRealName(), name));
     }
     public override string GetSuffix(PlayerControl seer, PlayerControl target = null, bool isForMeeting = false)
     {

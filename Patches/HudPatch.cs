@@ -1,4 +1,4 @@
-using Il2CppSystem.Text;
+using System.Text;
 using System;
 using TMPro;
 using TOHE.Roles.Core;
@@ -93,9 +93,9 @@ class HudManagerPatch
                     LowerInfoText.transform.parent = __instance.transform;
                     LowerInfoText.transform.localPosition = new Vector3(0, -2f, 0);
                     LowerInfoText.alignment = TextAlignmentOptions.Center;
+                    LowerInfoText.color = Palette.EnabledColor;
                     LowerInfoText.overflowMode = TextOverflowModes.Overflow;
                     LowerInfoText.enableWordWrapping = false;
-                    LowerInfoText.color = Palette.EnabledColor;
                     LowerInfoText.fontSizeMin = 2.8f;
                     LowerInfoText.fontSizeMax = 2.8f;
                 }
@@ -103,9 +103,29 @@ class HudManagerPatch
                 {
                     case CustomGameMode.Standard:
                         var roleClass = player.GetRoleClass();
-                        LowerInfoText.text = roleClass?.GetLowerText(player, isForMeeting: GameStates.IsMeeting, isForHud: true) ?? string.Empty;
+                        LowerInfoText.text = roleClass?.GetLowerText(player, player, isForMeeting: Main.MeetingIsStarted, isForHud: true) ?? string.Empty;
+                        
+
+                        if (roleClass != null)
+                        {
+                            float size = roleClass.SetModdedLowerText(out Color32? faceColor);
+
+                            if (faceColor != null)
+                            {
+                                LowerInfoText.SetFaceColor(faceColor.Value);
+                                LowerInfoText.SetOutlineColor(new Color32(0, 0, 0, 255));
+                            }
+                            if (LowerInfoText.fontSizeMin != size)
+                            {
+                                LowerInfoText.fontSizeMin = size;
+                                LowerInfoText.fontSizeMax = size;
+                            }
+                        }
+
+                        
                         break;
                 }
+
                 LowerInfoText.enabled = LowerInfoText.text != "" && LowerInfoText.text != string.Empty;
 
                 if ((!AmongUsClient.Instance.IsGameStarted && AmongUsClient.Instance.NetworkMode != NetworkModes.FreePlay) || GameStates.IsMeeting)
@@ -127,6 +147,10 @@ class HudManagerPatch
                 bool CanUseVent = player.CanUseImpostorVentButton();
                 __instance.ImpostorVentButton.ToggleVisible(CanUseVent);
                 player.Data.Role.CanVent = CanUseVent;
+
+                // Sometimes sabotage button was visible for non-host modded clients
+                if (!AmongUsClient.Instance.AmHost)
+                    __instance.SabotageButton.ToggleVisible(player.CanUseSabotage());
             }
             else
             {
@@ -209,15 +233,16 @@ class SetVentOutlinePatch
 class SetHudActivePatch
 {
     public static bool IsActive = false;
-    public static void Postfix(HudManager __instance, [HarmonyArgument(2)] bool isActive)
+    public static void Postfix(HudManager __instance, [HarmonyArgument(0)] PlayerControl player, [HarmonyArgument(2)] bool isActive)
     {
+        // Fix vanilla bug when report button displayed in the lobby
         __instance.ReportButton.ToggleVisible(!GameStates.IsLobby && isActive);
-        if (!GameStates.IsModHost) return;
-        if (GameStates.IsHideNSeek) return;
-        IsActive = isActive;
-        if (!isActive) return;
 
-        var player = PlayerControl.LocalPlayer;
+        if (!GameStates.IsModHost || GameStates.IsHideNSeek) return;
+
+        IsActive = isActive;
+
+        if (!isActive) return;
         if (player == null) return;
 
         if (player.Is(CustomRoles.Oblivious))

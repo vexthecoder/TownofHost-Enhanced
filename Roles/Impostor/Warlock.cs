@@ -13,7 +13,7 @@ internal class Warlock : RoleBase
     private const int Id = 5100;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Shapeshifter;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.ImpostorConcealing;
     //==================================================================\\
@@ -31,9 +31,9 @@ internal class Warlock : RoleBase
     public override void SetupCustomOption()
     {
         Options.SetupRoleOptions(Id, TabGroup.ImpostorRoles, CustomRoles.Warlock);
-        WarlockCanKillAllies = BooleanOptionItem.Create(Id + 2, "CanKillAllies", true, TabGroup.ImpostorRoles, false)
+        WarlockCanKillAllies = BooleanOptionItem.Create(Id + 2, "CanKillImpostors", true, TabGroup.ImpostorRoles, false)
             .SetParent(Options.CustomRoleSpawnChances[CustomRoles.Warlock]);
-        WarlockCanKillSelf = BooleanOptionItem.Create(Id + 3, "CanKillSelf", false, TabGroup.ImpostorRoles, false)
+        WarlockCanKillSelf = BooleanOptionItem.Create(Id + 3, "Warlock_CanKillSelf", false, TabGroup.ImpostorRoles, false)
             .SetParent(Options.CustomRoleSpawnChances[CustomRoles.Warlock]);
         WarlockShiftDuration = FloatOptionItem.Create(Id + 4, "ShapeshiftDuration", new(1, 180, 1), 1, TabGroup.ImpostorRoles, false)
             .SetParent(Options.CustomRoleSpawnChances[CustomRoles.Warlock])
@@ -118,8 +118,8 @@ internal class Warlock : RoleBase
                     PlayerControl targetw = min.Key;
                     if (cp.RpcCheckAndMurder(targetw, true))
                     {
-                        targetw.SetRealKiller(shapeshifter);
                         cp.RpcMurderPlayer(targetw);
+                        targetw.SetRealKiller(shapeshifter);
                         shapeshifter.RpcGuardAndKill(shapeshifter);
                         Logger.Info($"{targetw.GetNameWithRole()} was killed", "Warlock");
                         shapeshifter.Notify(Translator.GetString("WarlockControlKill"));
@@ -170,7 +170,7 @@ internal class Warlock : RoleBase
         }
     }
 
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
     {
         foreach (var warlockId in playerIdList)
         {

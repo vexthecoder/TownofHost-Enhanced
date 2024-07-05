@@ -17,7 +17,7 @@ internal class Puppeteer : RoleBase
     private const int Id = 4300;
     private static readonly HashSet<byte> PlayerIds = [];
     public static bool HasEnabled => PlayerIds.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.ImpostorConcealing;
     //==================================================================\\
@@ -135,8 +135,8 @@ internal class Puppeteer : RoleBase
                     {
                         var puppeteerId = PuppeteerList[puppet.PlayerId];
                         RPC.PlaySoundRPC(puppeteerId, Sounds.KillSound);
-                        target.SetRealKiller(Utils.GetPlayerById(puppeteerId));
                         puppet.RpcMurderPlayer(target);
+                        target.SetRealKiller(Utils.GetPlayerById(puppeteerId));
                         Utils.MarkEveryoneDirtySettings();
                         PuppeteerList.Remove(puppet.PlayerId);
                         SendRPC(byte.MaxValue, puppet.PlayerId, 2);
@@ -147,8 +147,8 @@ internal class Puppeteer : RoleBase
                         {
                             
                             Main.PlayerStates[puppet.PlayerId].deathReason = PlayerState.DeathReason.Drained;
-                            puppet.SetRealKiller(Utils.GetPlayerById(puppeteerId));
                             puppet.RpcMurderPlayer(puppet);
+                            puppet.SetRealKiller(Utils.GetPlayerById(puppeteerId));
                         }
                     }
                 }
@@ -156,7 +156,7 @@ internal class Puppeteer : RoleBase
         }
     }
 
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
     {
         PuppeteerList.Clear();
         SendRPC(byte.MaxValue, byte.MaxValue, 0);

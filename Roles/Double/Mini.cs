@@ -1,5 +1,7 @@
 using Hazel;
+using InnerNet;
 using System;
+using TOHE.Roles.Core;
 using static TOHE.Translator;
 using static TOHE.Utils;
 
@@ -8,9 +10,7 @@ internal class Mini : RoleBase
 {
     //===========================SETUP================================\\
     private const int Id = 7000;
-    private static readonly HashSet<byte> playerIdList = [];
-    public override bool IsEnable => HasEnabled;
-    public static bool HasEnabled => playerIdList.Any();
+    public static bool HasEnabled => CustomRoleManager.HasEnabled(CustomRoles.EvilMini) || CustomRoleManager.HasEnabled(CustomRoles.NiceMini);
     public override CustomRoles ThisRoleBase => IsEvilMini ? CustomRoles.Impostor : CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => IsEvilMini ? Custom_RoleType.ImpostorKilling : Custom_RoleType.CrewmateBasic;
     //==================================================================\\
@@ -28,7 +28,7 @@ internal class Mini : RoleBase
     public static int Age = new();
     private static bool IsEvilMini = false;
     private static int GrowUpTime = new();
-    private static int GrowUp = new();
+    //private static int GrowUp = new();
     private static long LastFixedUpdate = new();
     private static bool misguessed = false;
 
@@ -51,32 +51,35 @@ internal class Mini : RoleBase
     public override void Init()
     {
         GrowUpTime = 0;
-        playerIdList.Clear();
-        GrowUp = GrowUpDuration.GetInt() / 18;
+        //GrowUp = GrowUpDuration.GetInt() / 18;
         Age = 0;
         misguessed = false;
 
-        var rand = new Random();
-        IsEvilMini = CanBeEvil.GetBool() && (rand.Next(0, 100) < EvilMiniSpawnChances.GetInt());
+        if (AmongUsClient.Instance.AmHost)
+        {
+            var rand = IRandom.Instance;
+            IsEvilMini = CanBeEvil.GetBool() && (rand.Next(0, 100) < EvilMiniSpawnChances.GetInt());
+        }
     }
     public override void Add(byte playerId)
     {
-        playerIdList.Add(playerId);
-
-        if (!AmongUsClient.Instance.AmHost) return;
-        if (!Main.ResetCamPlayerList.Contains(playerId))
-            Main.ResetCamPlayerList.Add(playerId);
+        if (AmongUsClient.Instance.AmHost)
+        {
+            SendRPC();
+        }
     }
-    public static void SendRPC()
+    public void SendRPC()
     {
         MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SyncRoleSkill, SendOption.Reliable, -1);
-        writer.WritePacked((int)CustomRoles.Mini);
+        writer.WriteNetObject(_Player);
         writer.Write(Age);
+        writer.Write(IsEvilMini);
         AmongUsClient.Instance.FinishRpcImmediately(writer);
     }
     public override void ReceiveRPC(MessageReader reader, PlayerControl NaN)
     {
         Age = reader.ReadInt32();
+        IsEvilMini = reader.ReadBoolean();
     }
 
     public static bool CheckSpawnEvilMini() => IsEvilMini;
@@ -90,7 +93,7 @@ internal class Mini : RoleBase
         }
         return true;
     }
-    public static void OnFixedUpdates(PlayerControl player)
+    public void OnFixedUpdates(PlayerControl player)
     {
         if (!GameStates.IsInGame) return;
         if (Age >= 18) return;
@@ -185,32 +188,33 @@ internal class Mini : RoleBase
         return false;
     }
 
-    public override void CheckExileTarget(GameData.PlayerInfo exiled, ref bool DecidedWinner, bool isMeetingHud, ref string name)
+    public override void CheckExile(GameData.PlayerInfo exiled, ref bool DecidedWinner, bool isMeetingHud, ref string name)
     {
-        if (GetPlayerById(exiled.PlayerId).Is(CustomRoles.NiceMini) && Age < 18)
+        var mini = GetPlayerById(exiled.PlayerId);
+        if (mini != null && mini.Is(CustomRoles.NiceMini) && Age < 18)
         {
-            if (isMeetingHud)
+            if (!CustomWinnerHolder.CheckForConvertedWinner(exiled.PlayerId))
             {
-                name = string.Format(GetString("ExiledNiceMini"), Main.LastVotedPlayer, GetDisplayRoleAndSubName(exiled.PlayerId, exiled.PlayerId, true));
-                DecidedWinner = true;
-            }
-            else
-            {
-                if (!CustomWinnerHolder.CheckForConvertedWinner(exiled.PlayerId))
+                if (isMeetingHud)
+                {
+                    name = string.Format(GetString("ExiledNiceMini"), Main.LastVotedPlayer, GetDisplayRoleAndSubName(exiled.PlayerId, exiled.PlayerId, true));
+                }
+                else
                 {
                     CustomWinnerHolder.ResetAndSetWinner(CustomWinner.NiceMini);
                     CustomWinnerHolder.WinnerIds.Add(exiled.PlayerId);
                 }
+                DecidedWinner = true;
             }
         }
     }
 
-    public override bool OthersKnowTargetRoleColor(PlayerControl seer, PlayerControl target)
-        => (target.Is(CustomRoles.NiceMini) || target.Is(CustomRoles.EvilMini)) && EveryoneCanKnowMini.GetBool();
+    //public override bool OthersKnowTargetRoleColor(PlayerControl seer, PlayerControl target)
+    //    => (target.Is(CustomRoles.NiceMini) || target.Is(CustomRoles.EvilMini)) && EveryoneCanKnowMini.GetBool();
 
-    public override string PlayerKnowTargetColor(PlayerControl seer, PlayerControl target)
-            => !seer.GetCustomRole().IsImpostorTeam() && (target.Is(CustomRoles.NiceMini) || target.Is(CustomRoles.EvilMini)) ? Main.roleColors[CustomRoles.Mini] : string.Empty;
-    
-    public override string GetMark(PlayerControl seer, PlayerControl target = null, bool isForMeeting = false)
-            => HasEnabled && EveryoneCanKnowMini.GetBool() && (target.Is(CustomRoles.NiceMini) || target.Is(CustomRoles.EvilMini)) ? ColorString(GetRoleColor(CustomRoles.Mini), Age != 18 && UpDateAge.GetBool() ? $"({Age})" : string.Empty) : string.Empty;
+    //public override string PlayerKnowTargetColor(PlayerControl seer, PlayerControl target)
+    //    => (target.Is(CustomRoles.NiceMini) || target.Is(CustomRoles.EvilMini)) && EveryoneCanKnowMini.GetBool() ? Main.roleColors[CustomRoles.Mini] : string.Empty;
+
+    public override string GetMarkOthers(PlayerControl seer, PlayerControl target = null, bool isForMeeting = false)
+            => EveryoneCanKnowMini.GetBool() && (target.Is(CustomRoles.NiceMini) || target.Is(CustomRoles.EvilMini)) ? ColorString(GetRoleColor(CustomRoles.Mini), Age != 18 && UpDateAge.GetBool() ? $"({Age})" : string.Empty) : string.Empty;
 }

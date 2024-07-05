@@ -4,7 +4,6 @@ using BepInEx.Configuration;
 using BepInEx.Unity.IL2CPP;
 using BepInEx.Unity.IL2CPP.Utils.Collections;
 using Il2CppInterop.Runtime.Injection;
-using MonoMod.Cil;
 using System;
 using System.IO;
 using System.Reflection;
@@ -12,7 +11,6 @@ using System.Text;
 using System.Text.Json;
 using TOHE.Roles.Core;
 using TOHE.Roles.Double;
-using TOHE.Roles.Impostor;
 using TOHE.Roles.Neutral;
 using UnityEngine;
 
@@ -41,14 +39,14 @@ public class Main : BasePlugin
     public static ConfigEntry<string> DebugKeyInput { get; private set; }
 
     public const string PluginGuid = "com.0xdrmoe.townofhostenhanced";
-    public const string PluginVersion = "2024.0413.200.0021"; // YEAR.MMDD.VERSION.CANARYDEV
-    public const string PluginDisplayVersion = "2.0.0 dev 2.1";
-    public static readonly string SupportedVersionAU = "2024.3.5";
+    public const string PluginVersion = "2024.0618.200.050000"; // YEAR.MMDD.VERSION.CANARYDEV
+    public const string PluginDisplayVersion = "2.0.0 Canary 5";
+    public static readonly string SupportedVersionAU = "2024.3.5"; // Also 2024.6.4
 
     /******************* Change one of the three variables to true before making a release. *******************/
-    public static readonly bool Canary = false; // ACTIVE - Latest: V1.6.0 Canary 6
+    public static readonly bool Canary = true; // ACTIVE - Latest: V2.0.0 Canary 5
     public static readonly bool fullRelease = false; // INACTIVE - Latest: V1.6.0
-    public static readonly bool devRelease = true; // INACTIVE - Latest: V2.0.0 Dev 2.1
+    public static readonly bool devRelease = false; // INACTIVE - Latest: V2.0.0 Dev 25
 
     public static bool hasAccess = true;
 
@@ -95,6 +93,7 @@ public class Main : BasePlugin
     public static ConfigEntry<bool> ForceOwnLanguageRoleName { get; private set; }
     public static ConfigEntry<bool> EnableCustomButton { get; private set; }
     public static ConfigEntry<bool> EnableCustomSoundEffect { get; private set; }
+    public static ConfigEntry<bool> EnableCustomDecorations { get; private set; }
     public static ConfigEntry<bool> SwitchVanilla { get; private set; }
 
     // Debug
@@ -115,13 +114,15 @@ public class Main : BasePlugin
     public static ConfigEntry<string> BetaBuildURL { get; private set; }
     public static ConfigEntry<float> LastKillCooldown { get; private set; }
     public static ConfigEntry<float> LastShapeshifterCooldown { get; private set; }
-    
+    public static ConfigEntry<float> PlayerSpawnTimeOutCooldown { get; private set; }
+
     public static OptionBackupData RealOptionsData;
     
     public static Dictionary<byte, PlayerState> PlayerStates = [];
     public static readonly Dictionary<byte, string> AllPlayerNames = [];
     public static readonly Dictionary<byte, CustomRoles> AllPlayerCustomRoles = [];
     public static readonly Dictionary<(byte, byte), string> LastNotifyNames = [];
+    public static readonly Dictionary<byte, Action> LateOutfits = [];
     public static readonly Dictionary<byte, Color32> PlayerColors = [];
     public static readonly Dictionary<byte, PlayerState.DeathReason> AfterMeetingDeathPlayers = [];
     public static readonly Dictionary<CustomRoles, string> roleColors = [];
@@ -335,7 +336,6 @@ public class Main : BasePlugin
 
             CustomRolesHelper.DuplicatedRoles = new Dictionary<CustomRoles, Type>
             {
-                { CustomRoles.Pestilence, typeof(PlagueBearer) },
                 { CustomRoles.NiceMini, typeof(Mini) },
                 { CustomRoles.EvilMini, typeof(Mini) }
             };
@@ -431,8 +431,9 @@ public class Main : BasePlugin
         AutoMuteUs = Config.Bind("Client Options", "AutoMuteUs", false); // The AutoMuteUs bot fails to match the host's name.
         ForceOwnLanguage = Config.Bind("Client Options", "ForceOwnLanguage", false);
         ForceOwnLanguageRoleName = Config.Bind("Client Options", "ForceOwnLanguageRoleName", false);
-        EnableCustomButton = Config.Bind("Client Options", "EnableCustomButton", false);
+        EnableCustomButton = Config.Bind("Client Options", "EnableCustomButton", true);
         EnableCustomSoundEffect = Config.Bind("Client Options", "EnableCustomSoundEffect", true);
+        EnableCustomDecorations = Config.Bind("Client Options", "EnableCustomDecorations", true);
         SwitchVanilla = Config.Bind("Client Options", "SwitchVanilla", false);
 
         // Debug
@@ -488,6 +489,7 @@ public class Main : BasePlugin
         MessageWait = Config.Bind("Other", "MessageWait", 1);
         LastKillCooldown = Config.Bind("Other", "LastKillCooldown", (float)30);
         LastShapeshifterCooldown = Config.Bind("Other", "LastShapeshifterCooldown", (float)30);
+        PlayerSpawnTimeOutCooldown = Config.Bind("Other", "PlayerSpawnTimeOutCooldown", (float)3);
 
         hasArgumentException = false;
         ExceptionMessage = "";
@@ -531,14 +533,31 @@ public enum CustomRoles
      * Please add all the new roles in alphabetical order *
      ******************************************************/
 
-    //Default
+    // Crewmate(Vanilla)
     Crewmate = 0,
-    //Impostor(Vanilla)
+    Scientist,
+    Engineer,
+    GuardianAngel,
+    //Tracker,
+    //Noisemaker,
+
+    // Impostor(Vanilla)
     Impostor,
     Shapeshifter,
-    // Vanilla Remakes
+    //Phantom,
+
+    // Crewmate Vanilla Remakes
+    CrewmateTOHE,
+    ScientistTOHE,
+    EngineerTOHE,
+    GuardianAngelTOHE,
+    //TrackerTOHE,
+    //NoisemakerTOHE,
+
+    // Impostor Vanilla Remakes
     ImpostorTOHE,
     ShapeshifterTOHE,
+    //PhantomTOHE,
 
     // Impostor Ghost
     Bloodmoon,
@@ -565,9 +584,11 @@ public enum CustomRoles
     Deathpact,
     Devourer,
     Disperser,
+    DollMaster,
     Eraser,
     Escapist,
     EvilGuesser,
+    EvilHacker,
     EvilMini,
     EvilTracker,
     Fireworker,
@@ -616,17 +637,8 @@ public enum CustomRoles
     Wildling,
     Zombie,
 
-    //Crewmate(Vanilla)
-    Engineer,
-    GuardianAngel,
-    Scientist,
-    // Vanilla Remakes
-    CrewmateTOHE,
-    EngineerTOHE,
-    ScientistTOHE,
-    GuardianAngelTOHE,
-
     //Crewmate Ghost
+    Ghastly,
     Hawk,
     Warden,
 
@@ -678,7 +690,6 @@ public enum CustomRoles
     Oracle,
     Overseer, 
     Pacifist, 
-    Paranoia, //paranoid
     ChiefOfPolice, //police commisioner ///// UNUSED
     President,
     Psychic,
@@ -730,7 +741,6 @@ public enum CustomRoles
     Jinx,
     Juggernaut,
     Lawyer,
-    Masochist,
     Maverick,
     Medusa,
     Necromancer,
@@ -746,6 +756,7 @@ public enum CustomRoles
     PotionMaster,
     Poisoner,
     Provocateur,
+    PunchingBag,
     Pursuer,
     Pyromaniac,
     Quizmaster,
@@ -789,12 +800,13 @@ public enum CustomRoles
     // Add-ons
     Admired,
     Antidote,
+    Glow,
     Autopsy,
     Avanger,
     Aware,
     Bait,
     Bewilder,
-    Bloodlust,
+    Bloodthirst,
     Burst,
     Charmed,
     Circumvent,
@@ -828,18 +840,18 @@ public enum CustomRoles
     Mimic,
     Mundane,
     Necroview,
-    Ntr, //neptune
     Nimble,
     Oblivious,
     Oiiai,
     Onbound,
     Overclocked,
+    Paranoia,
+    Radar,
     Rainbow,
     Rascal,
     Reach,
     Rebound,
     Recruit,
-    Schizophrenic,
     Seer,
     Silent,
     Statue,
@@ -917,7 +929,7 @@ public enum CustomWinner
     Glitch = CustomRoles.Glitch,
     Plaguebearer = CustomRoles.PlagueBearer,
     PlagueDoctor = CustomRoles.PlagueDoctor,
-    Masochist = CustomRoles.Masochist,
+    PunchingBag = CustomRoles.PunchingBag,
     Doomsayer = CustomRoles.Doomsayer,
     Shroud = CustomRoles.Shroud,
     Seeker = CustomRoles.Seeker,

@@ -9,7 +9,7 @@ internal class Jester : RoleBase
     private const int Id = 14400;
     private static readonly HashSet<byte> PlayerIds = [];
     public static bool HasEnabled => PlayerIds.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => JesterCanVent.GetBool() ? CustomRoles.Engineer : CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralEvil;
     //==================================================================\\
@@ -49,7 +49,7 @@ internal class Jester : RoleBase
     }
     public override void ApplyGameOptions(IGameOptions opt, byte playerId)
     {
-        AURoleOptions.EngineerCooldown = 0f;
+        AURoleOptions.EngineerCooldown = 1f;
         AURoleOptions.EngineerInVentMaxTime = 0f;
 
         opt.SetVision(JesterHasImpostorVision.GetBool());
@@ -57,7 +57,7 @@ internal class Jester : RoleBase
     public override bool HideVote(PlayerVoteArea votedPlayer) => HideJesterVote.GetBool();
     public override bool OnCheckStartMeeting(PlayerControl reporter) => JesterCanUseButton.GetBool();
 
-    public override void CheckExileTarget(GameData.PlayerInfo exiled, ref bool DecidedWinner, bool isMeetingHud, ref string name)
+    public override void CheckExile(GameData.PlayerInfo exiled, ref bool DecidedWinner, bool isMeetingHud, ref string name)
     {
         if (MeetingsNeededForJesterWin.GetInt() <= Main.MeetingsPassed)
         {

@@ -13,7 +13,7 @@ internal class BountyHunter : RoleBase
     private const int Id = 800;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Shapeshifter;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.ImpostorKilling;
     //==================================================================\\
@@ -119,7 +119,7 @@ internal class BountyHunter : RoleBase
 
         return true;
     }
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target) => ChangeTimer.Clear();
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target) => ChangeTimer.Clear();
     public override void OnFixedUpdate(PlayerControl player)
     {
         if (!ChangeTimer.ContainsKey(player.PlayerId)) return;
@@ -218,7 +218,7 @@ internal class BountyHunter : RoleBase
         }
 
         var rand = IRandom.Instance;
-        var target = cTargets[rand.Next(0, cTargets.Count)];
+        var target = cTargets.RandomElement();
         var targetId = target.PlayerId;
         Targets[playerId] = targetId;
         

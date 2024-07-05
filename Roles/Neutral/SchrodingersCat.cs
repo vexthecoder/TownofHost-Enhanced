@@ -1,4 +1,7 @@
 ﻿using Hazel;
+using InnerNet;
+using TOHE.Roles.Core;
+
 
 namespace TOHE.Roles.Neutral;
 
@@ -6,9 +9,7 @@ internal class SchrodingersCat : RoleBase
 {
     //===========================SETUP================================\\
     private const int Id = 6900;
-    private static readonly HashSet<byte> PlayerIds = [];
-    public static bool HasEnabled => PlayerIds.Any();
-    public override bool IsEnable => HasEnabled;
+    public static bool HasEnabled => CustomRoleManager.HasEnabled(CustomRoles.SchrodingersCat);
     public override CustomRoles ThisRoleBase => CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralBenign;
     //==================================================================\\
@@ -23,19 +24,17 @@ internal class SchrodingersCat : RoleBase
     public override void Init()
     {
         teammate.Clear();
-        PlayerIds.Clear();
     }
 
     public override void Add(byte playerId)
     {
         teammate[playerId] = byte.MaxValue;
-        PlayerIds.Add(playerId);
     }
 
-    private static void SendRPC(byte catID)
+    private void SendRPC(byte catID)
     {
         MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SyncRoleSkill, SendOption.Reliable, -1);
-        writer.WritePacked((int)CustomRoles.SchrodingersCat);
+        writer.WriteNetObject(_Player);
         writer.Write(catID);
         writer.Write(teammate[catID]);
         AmongUsClient.Instance.FinishRpcImmediately(writer);
@@ -64,6 +63,38 @@ internal class SchrodingersCat : RoleBase
 
         killer.SetKillCooldown();
 
+        return false;
+    }
+
+
+    public override string GetMarkOthers(PlayerControl seer, PlayerControl target, bool isForMeeting = false)
+    {
+        if (seer != target && seer.IsAlive() && teammate.ContainsKey(seer.PlayerId) && teammate.ContainsValue(target.PlayerId))
+        {
+            return Utils.ColorString(Utils.GetRoleColor(CustomRoles.SchrodingersCat), " ☜");
+        }
+        else if (seer != target && !seer.IsAlive() && teammate.ContainsValue(target.PlayerId))
+        {
+            return Utils.ColorString(Utils.GetRoleColor(CustomRoles.SchrodingersCat), " ☜");
+        }
+        return string.Empty;
+    }
+
+    public override string PlayerKnowTargetColor(PlayerControl seer, PlayerControl target)
+    {
+        if (teammate.TryGetValue(seer.PlayerId, out var temmate) && target.PlayerId == temmate)
+        {
+            if (target.GetCustomRole().IsCrewmate()) return Main.roleColors[CustomRoles.CrewmateTOHE];
+            else return Main.roleColors[target.GetCustomRole()];
+        }
+        return string.Empty;
+    }
+    public override bool OthersKnowTargetRoleColor(PlayerControl seer, PlayerControl target)
+    {
+        if (teammate.TryGetValue(target.PlayerId, out var killer) && killer == seer.PlayerId)
+        {
+            return true;
+        }
         return false;
     }
 

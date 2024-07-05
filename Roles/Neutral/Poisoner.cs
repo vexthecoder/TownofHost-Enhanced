@@ -17,7 +17,7 @@ internal class Poisoner : RoleBase
     private const int Id = 17500;
     public static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralKilling;
     //==================================================================\\
@@ -109,8 +109,8 @@ internal class Poisoner : RoleBase
         if (target.IsAlive())
         {
             Main.PlayerStates[target.PlayerId].deathReason = PlayerState.DeathReason.Poison;
-            target.SetRealKiller(poisoner);
             target.RpcMurderPlayer(target);
+            target.SetRealKiller(poisoner);
             Logger.Info($"{target.GetRealName()} Died by Poison", "Poisoner");
             if (!isButton && poisoner.IsAlive())
             {
@@ -126,7 +126,7 @@ internal class Poisoner : RoleBase
             Logger.Info($"{target.GetRealName()} was in an unkillable state, poison was canceled", "Poisoner");
         }
     }
-    public override void OnReportDeadBody(PlayerControl sans, PlayerControl bateman)
+    public override void OnReportDeadBody(PlayerControl sans, GameData.PlayerInfo bateman)
     {
         foreach (var targetId in PoisonedPlayers.Keys)
         {

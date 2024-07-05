@@ -5,6 +5,7 @@ using UnityEngine;
 using static TOHE.Options;
 using static TOHE.Translator;
 using static TOHE.MeetingHudStartPatch;
+using InnerNet;
 
 namespace TOHE.Roles.Neutral;
 
@@ -12,9 +13,7 @@ internal class Solsticer : RoleBase
 {
     //===========================SETUP================================\\
     private const int Id = 26200;
-    private static readonly HashSet<byte> PlayerIds = [];
-    public static bool HasEnabled => PlayerIds.Any();
-    public override bool IsEnable => HasEnabled;
+    public static bool HasEnabled => CustomRoleManager.HasEnabled(CustomRoles.Solsticer);
     public override CustomRoles ThisRoleBase => SolsticerCanVent.GetBool() ? CustomRoles.Engineer : CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralChaos;
     //==================================================================\\
@@ -56,7 +55,6 @@ internal class Solsticer : RoleBase
     }
     public override void Init()
     {
-        PlayerIds.Clear();
         playerid = byte.MaxValue;
         warningActived = false;
         patched = false;
@@ -69,13 +67,11 @@ internal class Solsticer : RoleBase
     public override void Add(byte playerId)
     {
         playerid = playerId;
-        PlayerIds.Add(playerId);
 
-        CustomRoleManager.SuffixOthers.Add(GetSuffixOthers);
     }
     public override void ApplyGameOptions(IGameOptions opt, byte id)
     {
-        AURoleOptions.EngineerCooldown = 0f;
+        AURoleOptions.EngineerCooldown = 1f;
         AURoleOptions.EngineerInVentMaxTime = 0f;
         AURoleOptions.PlayerSpeedMod = !patched ? SolsticerSpeed.GetFloat() : 0.5f;
     } //Enabled Solsticer can vent
@@ -102,10 +98,11 @@ internal class Solsticer : RoleBase
 
         return true;
     }
-    private string GetSuffixOthers(PlayerControl seer, PlayerControl target, bool IsForMeeting = false)
+
+    public override string GetSuffixOthers(PlayerControl seer, PlayerControl target, bool IsForMeeting = false)
     {
-        if (GameStates.IsMeeting || !warningActived) return "";
-        if (seer.Is(CustomRoles.Solsticer)) return "";
+        if (IsForMeeting || !warningActived || seer.Is(CustomRoles.Solsticer)) return string.Empty;
+        if (seer.PlayerId != target.PlayerId && !target.Is(CustomRoles.Solsticer)) return string.Empty;
 
         var warning = "⚠";
         if (IsSolsticerTarget(seer, onlyKiller: true) && !target.Is(CustomRoles.Solsticer))
@@ -113,7 +110,7 @@ internal class Solsticer : RoleBase
 
         return Utils.ColorString(Utils.GetRoleColor(CustomRoles.Solsticer), warning);
     }
-    private static void ActiveWarning(PlayerControl pc)
+    private void ActiveWarning(PlayerControl pc)
     {
         foreach (var target in Main.AllAlivePlayerControls.Where(x => IsSolsticerTarget(x, onlyKiller: true)).ToArray())
         {
@@ -194,10 +191,10 @@ internal class Solsticer : RoleBase
             }
         }
     }
-    public static void SendRPC()
+    public void SendRPC()
     {
         MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SyncRoleSkill, SendOption.Reliable, -1);
-        writer.WritePacked((int)CustomRoles.Solsticer); //SyncSolsticerNotify
+        writer.WriteNetObject(_Player); //SyncSolsticerNotify
         var taskState = Utils.GetPlayerById(playerid).GetPlayerTaskState();
         if (taskState != null)
         {
@@ -239,7 +236,7 @@ internal class Solsticer : RoleBase
     {
         return pc.IsAlive() && (!onlyKiller || pc.HasImpKillButton());
     }
-    public static void ResetTasks(PlayerControl pc)
+    public void ResetTasks(PlayerControl pc)
     {
         SetShortTasksToAdd();
         var taskState = pc.GetPlayerTaskState();
@@ -253,7 +250,7 @@ internal class Solsticer : RoleBase
     }
     public static void SetShortTasksToAdd()
     {
-        var TotalPlayer = Main.PlayerStates.Count(x => x.Value.deathReason != PlayerState.DeathReason.Disconnected);
+        var TotalPlayer = Main.PlayerStates.Count(x => x.Value.Disconnected == false);
         var AlivePlayer = Main.AllAlivePlayerControls.Length;
 
         AddShortTasks = (int)((TotalPlayer - AlivePlayer) * AddTasksPreDeadPlayer.GetFloat());
@@ -271,7 +268,7 @@ internal class Solsticer : RoleBase
     }
     public override bool OnRoleGuess(bool isUI, PlayerControl target, PlayerControl pc, CustomRoles role, ref bool guesserSuicide)
     {
-        if( role == CustomRoles.Solsticer)
+        if (role == CustomRoles.Solsticer)
         {
             if (!isUI) Utils.SendMessage(GetString("GuessSolsticer"), pc.PlayerId);
             else pc.ShowPopUp(GetString("GuessSolsticer"));
@@ -281,7 +278,7 @@ internal class Solsticer : RoleBase
     }
     public override bool GuessCheck(bool isUI, PlayerControl pc, PlayerControl target, CustomRoles role, ref bool guesserSuicide)
     {
-        if (pc.Is(CustomRoles.Solsticer) && (!CanGuess || !SolsticerCanGuess.GetBool()))
+        if ((!CanGuess || !SolsticerCanGuess.GetBool()))
         {
             if (!isUI) Utils.SendMessage(GetString("SolsticerGuessMax"), pc.PlayerId);
             else pc.ShowPopUp(GetString("SolsticerGuessMax"));
@@ -289,7 +286,7 @@ internal class Solsticer : RoleBase
         }
         return false;
     }
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
     {
         patched = false;
     }

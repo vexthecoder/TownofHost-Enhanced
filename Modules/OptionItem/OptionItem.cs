@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using TOHE.Modules;
 using UnityEngine;
 
@@ -308,8 +307,7 @@ public enum TabGroup
     ImpostorRoles,
     CrewmateRoles,
     NeutralRoles,
-    Addons,
-    OtherRoles
+    Addons
 }
 public enum OptionFormat
 {

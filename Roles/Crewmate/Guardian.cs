@@ -9,7 +9,7 @@ internal class Guardian : RoleBase
     private const int Id = 11700;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmatePower;
     //==================================================================\\
@@ -40,7 +40,7 @@ internal class Guardian : RoleBase
 
     public override bool OnRoleGuess(bool isUI, PlayerControl target, PlayerControl guesser, CustomRoles role, ref bool guesserSuicide)
     {
-        if (target.Is(CustomRoles.Guardian) && target.GetPlayerTaskState().IsTaskFinished)
+        if (role == CustomRoles.Guardian && target.GetPlayerTaskState().IsTaskFinished)
         {
             if (!isUI) Utils.SendMessage(GetString("GuessGuardianTask"), guesser.PlayerId);
             else guesser.ShowPopUp(GetString("GuessGuardianTask"));

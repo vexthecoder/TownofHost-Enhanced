@@ -3,6 +3,7 @@ using static TOHE.Options;
 using static TOHE.Translator;
 using static TOHE.Utils;
 
+
 namespace TOHE.Roles.Crewmate;
 
 internal class Captain : RoleBase
@@ -11,7 +12,7 @@ internal class Captain : RoleBase
     private const int Id = 26300;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmatePower;
     //==================================================================\\
@@ -152,7 +153,7 @@ internal class Captain : RoleBase
         Logger.Info($"Total Number of Potential Target {allTargets.Count}", "Total Captain Target");
         if (allTargets.Count == 0) return true;
         var rand = IRandom.Instance;
-        var targetPC = allTargets[rand.Next(allTargets.Count)];
+        var targetPC = allTargets.RandomElement();
         var target = targetPC.PlayerId;
         OriginalSpeed[target] = Main.AllPlayerSpeed[target];
         SendRPCSetSpeed(target);
@@ -191,8 +192,7 @@ internal class Captain : RoleBase
             Logger.Info("No removable addons found on the target.", "Captain");
             return null;
         }
-        var rand = IRandom.Instance;
-        var addon = AllSubRoles[rand.Next(0, AllSubRoles.Count)];
+        var addon = AllSubRoles.RandomElement();
         return addon;
     }
     public override void OnPlayerExiled(PlayerControl captain, GameData.PlayerInfo exiled)
@@ -215,7 +215,7 @@ internal class Captain : RoleBase
         CaptainVoteTargets.Clear();
         SendRPCVoteRemove();
     }
-    public override void OnReportDeadBody(PlayerControl y, PlayerControl x)
+    public override void OnReportDeadBody(PlayerControl y, GameData.PlayerInfo x)
     {
         foreach (byte target in OriginalSpeed.Keys.ToArray())
         {
@@ -228,12 +228,15 @@ internal class Captain : RoleBase
         OriginalSpeed.Clear();
         SendRPCRevertAllSpeed();
     }
-    public override string GetMark(PlayerControl seer, PlayerControl target = null, bool isForMeeting = false)
+
+    public override string GetMarkOthers(PlayerControl seer, PlayerControl target, bool isForMeeting = false)
     {
-        if (target != null && (target.PlayerId != seer.PlayerId) && (target.Is(CustomRoles.Captain) && OptionCrewCanFindCaptain.GetBool()) &&
-                                (target.GetPlayerTaskState().CompletedTasksCount >= OptionTaskRequiredToReveal.GetInt()) &&
-                                (seer.GetCustomRole().IsCrewmate() && !seer.Is(CustomRoles.Madmate) || (seer.Is(CustomRoles.Madmate) && OptionMadmateCanFindCaptain.GetBool())))
+        if (target.Is(CustomRoles.Captain) && OptionCrewCanFindCaptain.GetBool() &&
+                (target.GetPlayerTaskState().CompletedTasksCount >= OptionTaskRequiredToReveal.GetInt()) &&
+                ((seer.Is(Custom_Team.Crewmate) && !seer.Is(CustomRoles.Madmate)) || (seer.Is(CustomRoles.Madmate) && OptionMadmateCanFindCaptain.GetBool())))
+        {
             return ColorString(GetRoleColor(CustomRoles.Captain), " ☆");
+        }
         return string.Empty;
     }
     public override void OnVoted(PlayerControl votedPlayer, PlayerControl votedTarget)

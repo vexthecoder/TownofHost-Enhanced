@@ -10,7 +10,7 @@ internal class Doctor : RoleBase
     private const int Id = 6700;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Scientist;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateBasic;
     //==================================================================\\
@@ -48,7 +48,7 @@ internal class Doctor : RoleBase
 
     public override bool OnRoleGuess(bool isUI, PlayerControl target, PlayerControl pc, CustomRoles role, ref bool guesserSuicide)
     {
-        if (target.Is(CustomRoles.Doctor) && VisibleToEveryoneOpt.GetBool() && !target.GetCustomSubRoles().Any(sub => sub.IsBetrayalAddon()))
+        if (VisibleToEveryoneOpt.GetBool() && !target.GetCustomSubRoles().Any(sub => sub.IsBetrayalAddon()))
         {
             if (!isUI) Utils.SendMessage(GetString("GuessDoctor"), pc.PlayerId);
             else pc.ShowPopUp(GetString("GuessDoctor"));

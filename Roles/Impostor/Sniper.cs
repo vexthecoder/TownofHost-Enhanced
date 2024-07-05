@@ -1,7 +1,6 @@
 using AmongUs.GameOptions;
 using Hazel;
 using TOHE.Modules;
-using TOHE.Roles.Core;
 using UnityEngine;
 using static TOHE.Translator;
 
@@ -13,7 +12,7 @@ internal class Sniper : RoleBase
     private const int Id = 2400;
     private static readonly HashSet<byte> PlayerIdList = [];
     public static bool HasEnabled => PlayerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Shapeshifter;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.ImpostorKilling;
     //==================================================================\\
@@ -84,7 +83,6 @@ internal class Sniper : RoleBase
         IsAim[playerId] = false;
         AimTime[playerId] = 0f;
 
-        CustomRoleManager.MarkOthers.Add(GetMarkOthers);
     }
 
     private static bool IsThisRole(byte playerId) => PlayerIdList.Contains(playerId);
@@ -305,7 +303,7 @@ internal class Sniper : RoleBase
             Utils.NotifyRoles(SpecifySeer: sniper);
         }
     }
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
     {
         meetingReset = true;
     }
@@ -347,7 +345,7 @@ internal class Sniper : RoleBase
         }
         return string.Empty;
     }
-    public string GetMarkOthers(PlayerControl seer, PlayerControl seen = null, bool isForMeeting = false)
+    public override string GetMarkOthers(PlayerControl seer, PlayerControl seen = null, bool isForMeeting = false)
     {
         if (isForMeeting) return string.Empty;
 

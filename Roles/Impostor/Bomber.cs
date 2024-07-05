@@ -11,7 +11,7 @@ internal class Bomber : RoleBase
     private const int Id = 700;
     private static readonly HashSet<byte> Playerids = [];
     public static bool HasEnabled => Playerids.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Shapeshifter;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.ImpostorKilling;
     //==================================================================\\
@@ -86,8 +86,8 @@ internal class Bomber : RoleBase
             if (dis > BomberRadius.GetFloat()) continue;
 
             Main.PlayerStates[target.PlayerId].deathReason = PlayerState.DeathReason.Bombed;
-            target.SetRealKiller(shapeshifter);
             target.RpcMurderPlayer(target);
+            target.SetRealKiller(shapeshifter);
         }
 
         if (BomberDiesInExplosion.GetBool() && playerRole is CustomRoles.Bomber)

@@ -12,12 +12,13 @@ namespace TOHE;
 
 public class PlayerState(byte playerId)
 {
-    readonly byte PlayerId = playerId;
-    public RoleBase RoleClass;
+    public readonly byte PlayerId = playerId;
+    public RoleBase RoleClass = new DefaultSetup();
     public CustomRoles MainRole = CustomRoles.NotAssigned;
     public List<CustomRoles> SubRoles = [];
     public CountTypes countTypes = CountTypes.OutOfGame;
     public bool IsDead { get; set; } = false;
+    public bool Disconnected { get; set; } = false;
 #pragma warning disable IDE1006 // Naming Styles
     public DeathReason deathReason { get; set; } = DeathReason.etc;
 #pragma warning restore IDE1006
@@ -27,6 +28,7 @@ public class PlayerState(byte playerId)
     public PlainShipRoom LastRoom = null;
     public bool HasSpawned { get; set; } = false;
     public Dictionary<byte, string> TargetColorData = [];
+    public GameData.PlayerOutfit NormalOutfit;
 
     public CustomRoles GetCustomRoleFromRoleType()
     {
@@ -151,7 +153,7 @@ public class PlayerState(byte playerId)
             SubRoles.Add(role);
         if (role.IsConverted())
         {
-            SubRoles.Where(AddON => AddON != role && AddON.IsConverted()).Do(x => SubRoles.Remove(x));
+            SubRoles.RemoveAll(AddON => AddON != role && AddON.IsConverted());
             SubRoles.Remove(CustomRoles.Rascal);
             SubRoles.Remove(CustomRoles.Loyal);
             SubRoles.Remove(CustomRoles.Admired);
@@ -215,7 +217,7 @@ public class PlayerState(byte playerId)
 
             case CustomRoles.Admired:
                 countTypes = CountTypes.Crew;
-                SubRoles.Where(AddON => AddON != role && AddON.IsConverted()).Do(x => SubRoles.Remove(x));
+                SubRoles.RemoveAll(AddON => AddON != role && AddON.IsConverted());
                 SubRoles.Remove(CustomRoles.Rascal);
                 SubRoles.Remove(CustomRoles.Loyal);
                 break;
@@ -271,7 +273,6 @@ public class PlayerState(byte playerId)
         Sniped,
         Revenge,
         Execution,
-        Disconnected,
         Fall,
 
         // TOHE
@@ -300,7 +301,7 @@ public class PlayerState(byte playerId)
         BloodLet,
         WrongAnswer,
 
-        //Please add all new roles with deathreason & new deathreason in Susceptible.CallEnabledAndChange
+        //Please add all new roles with deathreason & new deathreason in Utils.DeathReasonIsEnable();
         etc = -1,
     }
 
@@ -316,6 +317,7 @@ public class PlayerState(byte playerId)
         return count;
     }
 }
+
 public class TaskState
 {
     public static int InitialTotalTasks;
@@ -340,8 +342,7 @@ public class TaskState
             return "\r\n";
         }
 
-        var rd = IRandom.Instance;
-        var randomPlayer = playersWithTasks[rd.Next(0, playersWithTasks.Length)];
+        var randomPlayer = playersWithTasks.RandomElement();
         var taskState = randomPlayer.Value.TaskState;
 
         Color TextColor;
@@ -436,8 +437,12 @@ public static class GameStates
         {
             if (!IsOnlineGame) return false;
 
-            string region = ServerManager.Instance.CurrentRegion.Name;
-            return (region == "North America" || region == "Europe" || region == "Asia");
+            const string Domain = "among.us";
+
+            // From Reactor.gg
+            return ServerManager.Instance.CurrentRegion?.TryCast<StaticHttpRegionInfo>() is { } regionInfo &&
+                   regionInfo.PingServer.EndsWith(Domain, StringComparison.Ordinal) &&
+                   regionInfo.Servers.All(serverInfo => serverInfo.Ip.EndsWith(Domain, StringComparison.Ordinal));
         }
     }
     public static bool IsLocalGame => AmongUsClient.Instance.NetworkMode == NetworkModes.LocalGame;

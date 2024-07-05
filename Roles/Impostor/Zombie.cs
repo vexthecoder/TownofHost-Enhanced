@@ -1,4 +1,5 @@
 ﻿using AmongUs.GameOptions;
+using System;
 
 namespace TOHE.Roles.Impostor;
 
@@ -8,7 +9,7 @@ internal class Zombie : RoleBase
     private const int Id = 23900;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.ImpostorKilling;
     //==================================================================\\
@@ -42,7 +43,7 @@ internal class Zombie : RoleBase
     public override void SetKillCooldown(byte id)
     {
         Main.AllPlayerKillCooldown[id] = ZombieKillCooldown.GetFloat();
-        Main.AllPlayerSpeed[id] -= ZombieSpeedReduce.GetFloat();
+        Main.AllPlayerSpeed[id] -= (float)Math.Clamp(ZombieSpeedReduce.GetFloat(), 0, (double)Main.AllPlayerSpeed[id] - 0.5); 
     }
 
     public static void CheckRealVotes(PlayerControl target, ref int VoteNum)

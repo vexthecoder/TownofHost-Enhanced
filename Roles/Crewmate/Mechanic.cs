@@ -1,9 +1,9 @@
-using Hazel;
 using System;
 using System.Text;
 using UnityEngine;
 using AmongUs.GameOptions;
 using static TOHE.Utils;
+using TOHE.Roles.Core;
 
 namespace TOHE.Roles.Crewmate;
 
@@ -11,9 +11,7 @@ internal class Mechanic : RoleBase
 {
     //===========================SETUP================================\\
     private const int Id = 8500;
-    private static readonly HashSet<byte> playerIdList = [];
-    public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    public static bool HasEnabled => CustomRoleManager.HasEnabled(CustomRoles.Mechanic);
     public override CustomRoles ThisRoleBase => CustomRoles.Engineer;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateSupport;
     //==================================================================\\
@@ -28,9 +26,7 @@ internal class Mechanic : RoleBase
     private static OptionItem UsesUsedWhenFixingReactorOrO2;
     private static OptionItem UsesUsedWhenFixingLightsOrComms;
 
-    private static readonly Dictionary<byte, float> UsedSkillCount = [];
-
-    private static bool DoorsProgressing = false;
+    private bool DoorsProgressing = false;
 
     public override void SetupCustomOption()
     {
@@ -52,69 +48,56 @@ internal class Mechanic : RoleBase
             .SetParent(Options.CustomRoleSpawnChances[CustomRoles.Mechanic])
             .SetValueFormat(OptionFormat.Times);
     }
-    public override void Init()
-    {
-        playerIdList.Clear();
-        UsedSkillCount.Clear();
-    }
     public override void Add(byte playerId)
     {
-        playerIdList.Add(playerId);
-        UsedSkillCount.Add(playerId, 0);
-    }
-    public override void Remove(byte playerId)
-    {
-        playerIdList.Remove(playerId);
-        UsedSkillCount.Remove(playerId);
+        AbilityLimit = SkillLimit.GetInt();
     }
     public override void UpdateSystem(ShipStatus __instance, SystemTypes systemType, byte amount, PlayerControl player)
     {
-        var playerId = player.PlayerId;
-
         switch (systemType)
         {
             case SystemTypes.Reactor:
                 if (!FixesReactors.GetBool()) break;
-                if (SkillLimit.GetFloat() > 0 && UsedSkillCount[playerId] + UsesUsedWhenFixingReactorOrO2.GetFloat() - 1 >= SkillLimit.GetFloat()) break;
+                if (SkillLimit.GetFloat() > 0 && AbilityLimit + UsesUsedWhenFixingReactorOrO2.GetFloat() - 1 <= 0) break;
                 if (amount is 64 or 65)
                 {
                     ShipStatus.Instance.RpcUpdateSystem(SystemTypes.Reactor, 16);
                     ShipStatus.Instance.RpcUpdateSystem(SystemTypes.Reactor, 17);
-                    UsedSkillCount[playerId] += UsesUsedWhenFixingReactorOrO2.GetFloat();
-                    SendRPC(playerId);
+                    AbilityLimit -= UsesUsedWhenFixingReactorOrO2.GetFloat();
+                    SendSkillRPC();
                 }
                 break;
             case SystemTypes.Laboratory:
                 if (!FixesReactors.GetBool()) break;
-                if (SkillLimit.GetFloat() > 0 && UsedSkillCount[playerId] + UsesUsedWhenFixingReactorOrO2.GetFloat() - 1 >= SkillLimit.GetFloat()) break;
+                if (SkillLimit.GetFloat() > 0 && AbilityLimit + UsesUsedWhenFixingReactorOrO2.GetFloat() - 1 <= 0) break;
                 if (amount is 64 or 65)
                 {
                     ShipStatus.Instance.RpcUpdateSystem(SystemTypes.Laboratory, 67);
                     ShipStatus.Instance.RpcUpdateSystem(SystemTypes.Laboratory, 66);
-                    UsedSkillCount[playerId] += UsesUsedWhenFixingReactorOrO2.GetFloat();
-                    SendRPC(playerId);
+                    AbilityLimit -= UsesUsedWhenFixingReactorOrO2.GetFloat();
+                    SendSkillRPC();
                 }
                 break;
             case SystemTypes.LifeSupp:
                 if (!FixesOxygens.GetBool()) break;
-                if (SkillLimit.GetFloat() > 0 && UsedSkillCount[playerId] + UsesUsedWhenFixingReactorOrO2.GetFloat() - 1 >= SkillLimit.GetFloat()) break;
+                if (SkillLimit.GetFloat() > 0 && AbilityLimit + UsesUsedWhenFixingReactorOrO2.GetFloat() - 1 <= 0) break;
                 if (amount is 64 or 65)
                 {
                     ShipStatus.Instance.RpcUpdateSystem(SystemTypes.LifeSupp, 67);
                     ShipStatus.Instance.RpcUpdateSystem(SystemTypes.LifeSupp, 66);
-                    UsedSkillCount[playerId] += UsesUsedWhenFixingReactorOrO2.GetFloat();
-                    SendRPC(playerId);
+                    AbilityLimit -= UsesUsedWhenFixingReactorOrO2.GetFloat();
+                    SendSkillRPC();
                 }
                 break;
             case SystemTypes.Comms:
                 if (!FixesComms.GetBool()) break;
-                if (SkillLimit.GetFloat() > 0 && UsedSkillCount[playerId] + UsesUsedWhenFixingLightsOrComms.GetFloat() - 1 >= SkillLimit.GetFloat()) break;
+                if (SkillLimit.GetFloat() > 0 && AbilityLimit + UsesUsedWhenFixingLightsOrComms.GetFloat() - 1 <= 0) break;
                 if (amount is 64 or 65)
                 {
                     ShipStatus.Instance.RpcUpdateSystem(SystemTypes.Comms, 16);
                     ShipStatus.Instance.RpcUpdateSystem(SystemTypes.Comms, 17);
-                    UsedSkillCount[playerId] += UsesUsedWhenFixingLightsOrComms.GetFloat();
-                    SendRPC(playerId);
+                    AbilityLimit -= UsesUsedWhenFixingLightsOrComms.GetFloat();
+                    SendSkillRPC();
                 }
                 break;
             case SystemTypes.Doors:
@@ -152,39 +135,19 @@ internal class Mechanic : RoleBase
     {
         if (!FixesElectrical.GetBool()) return;
 
-        var playerId = player.PlayerId;
+        //var playerId = player.PlayerId;
         
         if (SkillLimit.GetFloat() > 0 &&
-            UsedSkillCount[playerId] + UsesUsedWhenFixingLightsOrComms.GetFloat() - 1 >= SkillLimit.GetFloat())
+            AbilityLimit + UsesUsedWhenFixingLightsOrComms.GetFloat() - 1 <= 0)
             return;
 
         __instance.ActualSwitches = 0;
         __instance.ExpectedSwitches = 0;
 
-        UsedSkillCount[playerId] += UsesUsedWhenFixingLightsOrComms.GetFloat();
-        SendRPC(playerId);
+        AbilityLimit -= UsesUsedWhenFixingLightsOrComms.GetFloat();
+        SendSkillRPC();
 
         Logger.Info($"{player.GetNameWithRole().RemoveHtmlTags()} instant - fix-lights", "SwitchSystem");
-    }
-
-    public static void SendRPC(byte playerId)
-    {
-        MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SyncRoleSkill, SendOption.Reliable, -1);
-        writer.WritePacked((int)CustomRoles.Mechanic);
-        writer.Write(playerId);
-        writer.Write(UsedSkillCount[playerId]);
-        AmongUsClient.Instance.FinishRpcImmediately(writer);
-    }
-    public override void ReceiveRPC(MessageReader reader, PlayerControl NaN)
-    {
-        byte playerId = reader.ReadByte();
-        float count = reader.ReadSingle();
-
-        if (!UsedSkillCount.ContainsKey(playerId))
-        {
-            UsedSkillCount.Add(playerId, count);
-        }
-        else UsedSkillCount[playerId] = count;
     }
     public override string GetProgressText(byte playerId, bool comms)
     {
@@ -197,24 +160,24 @@ internal class Mechanic : RoleBase
         TextColor10 = comms ? Color.gray : NormalColor10;
         string Completed10 = comms ? "?" : $"{taskState10.CompletedTasksCount}";
         Color TextColor101;
-        if (SkillLimit.GetFloat() - UsedSkillCount[playerId] < 1) TextColor101 = Color.red;
+        if (AbilityLimit <= 1) TextColor101 = Color.red;
         else TextColor101 = Color.white;
         ProgressText.Append(ColorString(TextColor10, $"({Completed10}/{taskState10.AllTasksCount})"));
-        ProgressText.Append(ColorString(TextColor101, $" <color=#ffffff>-</color> {Math.Round(SkillLimit.GetFloat() - UsedSkillCount[playerId], 1)}"));
+        ProgressText.Append(ColorString(TextColor101, $" <color=#ffffff>-</color> {Math.Round(AbilityLimit, 1)}"));
         return ProgressText.ToString();
     }
     public override bool OnTaskComplete(PlayerControl player, int completedTaskCount, int totalTaskCount)
     {
         if (player.IsAlive())
         {
-            UsedSkillCount[player.PlayerId] -= SMAbilityUseGainWithEachTaskCompleted.GetFloat();
-            SendRPC(player.PlayerId);
+            AbilityLimit += SMAbilityUseGainWithEachTaskCompleted.GetFloat();
+            SendSkillRPC();
         }
         return true;
     }
     public override void ApplyGameOptions(IGameOptions opt, byte playerId)
     {
-        AURoleOptions.EngineerCooldown = 0f;
+        AURoleOptions.EngineerCooldown = 1f;
         AURoleOptions.EngineerInVentMaxTime = 0f;
     }
 }

@@ -4,13 +4,6 @@ using TOHE.Modules;
 using TOHE.Roles.AddOns.Common;
 using TOHE.Roles.AddOns.Crewmate;
 using TOHE.Roles.AddOns.Impostor;
-using TOHE.Roles._Ghosts_.Impostor;
-using TOHE.Roles._Ghosts_.Crewmate;
-using TOHE.Roles.Crewmate;
-using TOHE.Roles.Double;
-using TOHE.Roles.Impostor;
-using TOHE.Roles.Neutral;
-using TOHE.Roles.Vanilla;
 using UnityEngine;
 using TOHE.Roles.Core;
 
@@ -140,6 +133,7 @@ public static class Options
     // ------------ System Settings Tab ------------
     public static OptionItem GradientTagsOpt;
     public static OptionItem EnableKillerLeftCommand;
+    public static OptionItem ShowMadmatesInLeftCommand;
     public static OptionItem SeeEjectedRolesInMeeting;
 
     public static OptionItem KickLowLevelPlayer;
@@ -155,8 +149,8 @@ public static class Options
     public static OptionItem OptKickPlayStationPlayer;
     public static OptionItem OptKickNintendoPlayer;
 
-    public static OptionItem KickPlayerFriendCodeNotExist;
-    public static OptionItem TempBanPlayerFriendCodeNotExist;
+    public static OptionItem KickPlayerFriendCodeInvalid;
+    public static OptionItem TempBanPlayerFriendCodeInvalid;
 
     public static OptionItem AutoKickStart;
     public static OptionItem AutoKickStartTimes;
@@ -182,6 +176,11 @@ public static class Options
     public static OptionItem MaxWaitAutoStart;
     public static OptionItem PlayerAutoStart;
     public static OptionItem AutoStartTimer;
+    public static OptionItem ImmediateAutoStart;
+    public static OptionItem ImmediateStartTimer;
+    public static OptionItem StartWhenPlayersReach;
+    public static OptionItem StartWhenTimerLowerThan;
+
     public static OptionItem AutoPlayAgain;
     public static OptionItem AutoPlayAgainCountdown;
 
@@ -221,7 +220,6 @@ public static class Options
     public static OptionItem RoleAssigningAlgorithm;
     public static OptionItem KPDCamouflageMode;
     public static OptionItem EnableUpMode;
-    public static OptionItem DisableVoteBan;
 
     // ------------ Game Settings Tab ------------
 
@@ -354,6 +352,7 @@ public static class Options
     public static OptionItem FixFirstKillCooldown;
     public static OptionItem FixKillCooldownValue;
     public static OptionItem ShieldPersonDiedFirst;
+    public static OptionItem EveryoneCanSeeDeathReason;
 
     public static OptionItem KillFlashDuration;
 
@@ -590,11 +589,10 @@ public static class Options
     public static void Load()
     {
         //#######################################
-        // 28100 lasted id for roles/add-ons (Next use 28200)
+        // 28400 last id for roles/add-ons (Next use 28500)
         // Limit id for roles/add-ons --- "59999"
         //#######################################
 
-        // 22004 (Glow)
 
 
         // Start Load Settings
@@ -682,6 +680,17 @@ public static class Options
             .SetColor(new Color32(255, 25, 25, byte.MaxValue));
 
         CustomRoleManager.GetNormalOptions(Custom_RoleType.ImpostorVanilla).ForEach(r => r.SetupCustomOption());
+       
+        if (CustomRoleManager.RoleClass.Where(x => x.Key.IsImpostor()).Any(r => r.Value.IsExperimental))
+        {
+            TextOptionItem.Create(10000020, "Experimental.Roles", TabGroup.ImpostorRoles)
+            .SetGameMode(CustomGameMode.Standard)
+            .SetColor(new Color32(141, 70, 49, byte.MaxValue));
+
+            CustomRoleManager.GetExperimentalOptions(Custom_Team.Impostor).ForEach(r => r.SetupCustomOption());
+
+
+        }
 
         TextOptionItem.Create(10000001, "RoleType.ImpKilling", TabGroup.ImpostorRoles) // KILLING
             .SetGameMode(CustomGameMode.Standard)
@@ -748,6 +757,17 @@ public static class Options
         CustomRoleManager.GetNormalOptions(Custom_RoleType.CrewmateVanilla).ForEach(r => r.SetupCustomOption());
         CustomRoleManager.GetNormalOptions(Custom_RoleType.CrewmateVanillaGhosts).ForEach(r => r.SetupCustomOption());
 
+        if (CustomRoleManager.RoleClass.Where(x => x.Key.IsCrewmate()).Any(r => r.Value.IsExperimental))
+        {
+            TextOptionItem.Create(10000021, "Experimental.Roles", TabGroup.CrewmateRoles)
+            .SetGameMode(CustomGameMode.Standard)
+            .SetColor(new Color32(141, 70, 49, byte.MaxValue));
+
+            CustomRoleManager.GetExperimentalOptions(Custom_Team.Crewmate).ForEach(r => r.SetupCustomOption());
+
+
+        }
+
         /*
          * BASIC ROLES
          */
@@ -791,16 +811,29 @@ public static class Options
 
         /*
          * Crewmate Ghost Roles
-        */
+         */
         TextOptionItem.Create(10000101, "RoleType.CrewGhost", TabGroup.CrewmateRoles)
             .SetGameMode(CustomGameMode.Standard)
             .SetColor(new Color32(140, 255, 255, byte.MaxValue));
 
         CustomRoleManager.GetNormalOptions(Custom_RoleType.CrewmateGhosts).ForEach(r => r.SetupCustomOption());
 
+
         #endregion
 
         #region Neutrals Settings
+
+
+        if (CustomRoleManager.RoleClass.Where(x => x.Key.IsNeutral()).Any(r => r.Value.IsExperimental))
+        {
+            TextOptionItem.Create(10000022, "Experimental.Roles", TabGroup.NeutralRoles)
+            .SetGameMode(CustomGameMode.Standard)
+            .SetColor(new Color32(141, 70, 49, byte.MaxValue));
+
+            CustomRoleManager.GetExperimentalOptions(Custom_Team.Neutral).ForEach(r => r.SetupCustomOption());
+
+
+        }
         // Neutral
         TextOptionItem.Create(10000011, "RoleType.NeutralBenign", TabGroup.NeutralRoles)
             .SetGameMode(CustomGameMode.Standard)
@@ -825,11 +858,6 @@ public static class Options
             .SetColor(new Color32(127, 140, 141, byte.MaxValue));
 
         CustomRoleManager.GetNormalOptions(Custom_RoleType.NeutralKilling).ForEach(r => r.SetupCustomOption());
-
-        /*
-         * PlagueBearer 
-         */
-        CustomRoles.PlagueBearer.GetStaticRoleClass().SetupCustomOption();
 
         #endregion
 
@@ -870,6 +898,8 @@ public static class Options
         Nimble.SetupCustomOptions();
 
         Overclocked.SetupCustomOptions();
+
+        Radar.SetupCustomOptions();
 
         Seer.SetupCustomOptions();
 
@@ -921,7 +951,7 @@ public static class Options
 
         Aware.SetupCustomOptions();
 
-        Bloodlust.SetupCustomOptions();
+        Bloodthirst.SetupCustomOptions();
 
         Diseased.SetupCustomOptions();
 
@@ -944,7 +974,7 @@ public static class Options
 
         Rebound.SetupCustomOptions();
 
-        Schizophrenic.SetupCustomOptions();
+        Paranoia.SetupCustomOptions();
 
         Stubborn.SetupCustomOptions();
 
@@ -997,6 +1027,9 @@ public static class Options
             .SetGameMode(CustomGameMode.Standard)
             .SetColor(new Color32(127, 140, 141, byte.MaxValue));
 
+
+        Youtuber.SetupCustomOptions();
+
         Egoist.SetupCustomOption();
 
         SetupLoversRoleOptionsToggle(23600);
@@ -1007,40 +1040,18 @@ public static class Options
         
         Workhorse.SetupCustomOption();
 
+        TextOptionItem.Create(10000023, "Experimental.Roles", TabGroup.Addons)
+            .SetGameMode(CustomGameMode.Standard)
+            .SetColor(new Color32(141, 140, 141, byte.MaxValue));
+
+        Glow.SetupCustomOptions();
+
+
         #endregion
 
         #region Experimental Roles/Add-ons Settings
-        TextOptionItem.Create(10000020, "OtherRoles.ImpostorRoles", TabGroup.OtherRoles)
-            .SetGameMode(CustomGameMode.Standard)
-            .SetColor(new Color32(247, 70, 49, byte.MaxValue));
-
-        CustomRoleManager.GetExperimentalOptions(Custom_Team.Impostor).ForEach(r => r.SetupCustomOption());
-
-        //Disperser.SetupCustomOption();        
-
-        // Crewmate roles
-        TextOptionItem.Create(10000021, "OtherRoles.CrewmateRoles", TabGroup.OtherRoles)
-            .SetGameMode(CustomGameMode.Standard)
-            .SetColor(new Color32(140, 255, 255, byte.MaxValue));
-
-        CustomRoleManager.GetExperimentalOptions(Custom_Team.Crewmate).ForEach(r => r.SetupCustomOption());
-
-        // Neutral roles
-        TextOptionItem.Create(10000022, "OtherRoles.NeutralRoles", TabGroup.OtherRoles)
-            .SetGameMode(CustomGameMode.Standard)
-            .SetColor(new Color32(127, 140, 141, byte.MaxValue));
-
-        CustomRoleManager.GetExperimentalOptions(Custom_Team.Neutral).ForEach(r => r.SetupCustomOption());
 
 
-        // addons
-        TextOptionItem.Create(10000023, "OtherRoles.Addons", TabGroup.OtherRoles)
-            .SetGameMode(CustomGameMode.Standard)
-            .SetColor(new Color32(255, 154, 206, byte.MaxValue));
-
-        //SetupAdtRoleOptions(25300, CustomRoles.Ntr, tab: TabGroup.OtherRoles);
-
-        Youtuber.SetupCustomOptions();
 
         #endregion
 
@@ -1050,6 +1061,8 @@ public static class Options
         EnableKillerLeftCommand = BooleanOptionItem.Create(60040, "EnableKillerLeftCommand", true, TabGroup.SystemSettings, false)
             .SetColor(Color.green)
             .HideInHnS();
+        ShowMadmatesInLeftCommand = BooleanOptionItem.Create(60042, "ShowMadmatesInLeftCommand", true, TabGroup.SystemSettings, false)
+            .SetParent(EnableKillerLeftCommand);
         SeeEjectedRolesInMeeting = BooleanOptionItem.Create(60041, "SeeEjectedRolesInMeeting", true, TabGroup.SystemSettings, false)
             .SetColor(Color.green)
             .HideInHnS();
@@ -1074,9 +1087,9 @@ public static class Options
             .SetParent(KickOtherPlatformPlayer);
         OptKickNintendoPlayer = BooleanOptionItem.Create(60075, "OptKickNintendoPlayer", false, TabGroup.SystemSettings, false)
             .SetParent(KickOtherPlatformPlayer); //Switch
-        KickPlayerFriendCodeNotExist = BooleanOptionItem.Create(60080, "KickPlayerFriendCodeNotExist", true, TabGroup.SystemSettings, false);
-        TempBanPlayerFriendCodeNotExist = BooleanOptionItem.Create(60081, "TempBanPlayerFriendCodeNotExist", false, TabGroup.SystemSettings, false)
-            .SetParent(KickPlayerFriendCodeNotExist);
+        KickPlayerFriendCodeInvalid = BooleanOptionItem.Create(60080, "KickPlayerFriendCodeInvalid", true, TabGroup.SystemSettings, false);
+        TempBanPlayerFriendCodeInvalid = BooleanOptionItem.Create(60081, "TempBanPlayerFriendCodeInvalid", false, TabGroup.SystemSettings, false)
+            .SetParent(KickPlayerFriendCodeInvalid);
         AutoKickStart = BooleanOptionItem.Create(60140, "AutoKickStart", false, TabGroup.SystemSettings, false);
         AutoKickStartTimes = IntegerOptionItem.Create(60141, "AutoKickStartTimes", new(0, 99, 1), 1, TabGroup.SystemSettings, false)
             .SetParent(AutoKickStart)
@@ -1106,8 +1119,19 @@ public static class Options
         AutoWarnStopWords = BooleanOptionItem.Create(60163, "AutoWarnStopWords", false, TabGroup.SystemSettings, false); */
         MinWaitAutoStart = FloatOptionItem.Create(60170, "MinWaitAutoStart", new(0f, 10f, 0.5f), 1.5f, TabGroup.SystemSettings, false).SetHeader(true);
         MaxWaitAutoStart = FloatOptionItem.Create(60180, "MaxWaitAutoStart", new(0f, 10f, 0.5f), 1.5f, TabGroup.SystemSettings, false);
-        PlayerAutoStart = IntegerOptionItem.Create(60190, "PlayerAutoStart", new(1, 15, 1), 14, TabGroup.SystemSettings, false);
+        PlayerAutoStart = IntegerOptionItem.Create(60190, "PlayerAutoStart", new(1, 100, 1), 14, TabGroup.SystemSettings, false)
+            .SetValueFormat(OptionFormat.Players);
         AutoStartTimer = IntegerOptionItem.Create(60200, "AutoStartTimer", new(10, 600, 1), 20, TabGroup.SystemSettings, false)
+            .SetValueFormat(OptionFormat.Seconds);
+        ImmediateAutoStart = BooleanOptionItem.Create(60201, "ImmediateAutoStart", false, TabGroup.SystemSettings, false);
+        ImmediateStartTimer = IntegerOptionItem.Create(60202, "ImmediateStartTimer", new(0, 60, 1), 20, TabGroup.SystemSettings, false)
+            .SetParent(ImmediateAutoStart)
+            .SetValueFormat(OptionFormat.Seconds);
+        StartWhenPlayersReach = IntegerOptionItem.Create(60203, "StartWhenPlayersReach", new(0, 100, 1), 14, TabGroup.SystemSettings, false)
+            .SetParent(ImmediateAutoStart)
+            .SetValueFormat(OptionFormat.Players);
+        StartWhenTimerLowerThan = IntegerOptionItem.Create(60204, "StartWhenTimerLowerThan", new(0, 600, 5), 60, TabGroup.SystemSettings, false)
+            .SetParent(ImmediateAutoStart)
             .SetValueFormat(OptionFormat.Seconds);
         AutoPlayAgain = BooleanOptionItem.Create(60210, "AutoPlayAgain", false, TabGroup.SystemSettings, false);
         AutoPlayAgainCountdown = IntegerOptionItem.Create(60211, "AutoPlayAgainCountdown", new(1, 20, 1), 10, TabGroup.SystemSettings, false)
@@ -1128,7 +1152,6 @@ public static class Options
 
         CheatResponses = StringOptionItem.Create(60250, "CheatResponses", CheatResponsesName, 0, TabGroup.SystemSettings, false)
             .SetHeader(true);
-        DisableVoteBan = BooleanOptionItem.Create(60260, "DisableVoteBan", false, TabGroup.SystemSettings, true);
 
         AutoDisplayKillLog = BooleanOptionItem.Create(60270, "AutoDisplayKillLog", true, TabGroup.SystemSettings, false)
             .SetHeader(true)
@@ -1298,7 +1321,7 @@ public static class Options
             .SetGameMode(CustomGameMode.Standard)
             .SetColor(new Color32(19, 188, 233, byte.MaxValue));
         // Reset Doors Mode
-        DoorsResetMode = StringOptionItem.Create(60501, "DoorsResetMode", EnumHelper.GetAllNames<DoorsReset.ResetMode>(), 2, TabGroup.GameSettings, false)
+        DoorsResetMode = StringOptionItem.Create(60501, "DoorsResetMode", EnumHelper.GetAllNames<DoorsReset.ResetModeList>(), 2, TabGroup.GameSettings, false)
             .SetParent(ResetDoorsEveryTurns)
             .SetColor(new Color32(19, 188, 233, byte.MaxValue));
         // Change decontamination time on MiraHQ/Polus
@@ -1808,6 +1831,9 @@ public static class Options
             .SetParent(FixFirstKillCooldown);
         // 首刀保护
         ShieldPersonDiedFirst = BooleanOptionItem.Create(60780, "ShieldPersonDiedFirst", false, TabGroup.GameSettings, false)
+            .SetGameMode(CustomGameMode.Standard)
+            .SetColor(new Color32(193, 255, 209, byte.MaxValue));
+        EveryoneCanSeeDeathReason = BooleanOptionItem.Create(60781, "EveryoneCanSeeDeathReason", false, TabGroup.GameSettings, false)
             .SetGameMode(CustomGameMode.Standard)
             .SetColor(new Color32(193, 255, 209, byte.MaxValue));
 

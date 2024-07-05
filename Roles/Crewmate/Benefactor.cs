@@ -10,7 +10,7 @@ internal class Benefactor : RoleBase
     private const int Id = 26400;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateSupport;
     //==================================================================\\
@@ -38,6 +38,7 @@ internal class Benefactor : RoleBase
 
     public override void Init()
     {
+        playerIdList.Clear();
         taskIndex.Clear();
         shieldedPlayers.Clear();
         TaskMarkPerRound.Clear();
@@ -45,10 +46,12 @@ internal class Benefactor : RoleBase
     }
     public override void Add(byte playerId)
     {
+        playerIdList.Add(playerId);
         TaskMarkPerRound[playerId] = 0;
     }
     public override void Remove(byte playerId)
     {
+        playerIdList.Remove(playerId);
         TaskMarkPerRound.Remove(playerId);
     }
 
@@ -145,7 +148,7 @@ internal class Benefactor : RoleBase
         if (!AmongUsClient.Instance.AmHost) return;
         
         if (!HasEnabled) return;
-        if (player == null) return;
+        if (player == null || _Player == null) return;
         if (!player.IsAlive()) return;
         
         byte playerId = player.PlayerId;

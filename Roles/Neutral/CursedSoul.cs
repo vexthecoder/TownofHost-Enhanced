@@ -12,7 +12,6 @@ internal class CursedSoul : RoleBase
     private const int Id = 14000;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => false;
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralEvil;
     //==================================================================\\
@@ -22,8 +21,8 @@ internal class CursedSoul : RoleBase
     private static OptionItem CurseMax;
     private static OptionItem KnowTargetRole;
     private static OptionItem CanCurseNeutral;
-    
-    private static int CurseLimit = new();
+
+    private int CurseLimit;
 
     public override void SetupCustomOption()
     {
@@ -40,7 +39,7 @@ internal class CursedSoul : RoleBase
     public override void Init()
     {
         playerIdList.Clear();
-        CurseLimit = new();
+        CurseLimit = CurseMax.GetInt();
     }
     public override void Add(byte playerId)
     {
@@ -52,15 +51,18 @@ internal class CursedSoul : RoleBase
             Main.ResetCamPlayerList.Add(playerId);
     }
 
-    private static void SendRPC()
+    private void SendRPC()
     {
         MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SetCursedSoulCurseLimit, SendOption.Reliable, -1);
+        writer.Write(_state.PlayerId);
         writer.Write(CurseLimit);
         AmongUsClient.Instance.FinishRpcImmediately(writer);
     }
     public static void ReceiveRPC(MessageReader reader)
     {
-        CurseLimit = reader.ReadInt32();
+        var pID = reader.ReadByte();
+        if (Main.PlayerStates[pID].RoleClass is CursedSoul cs) 
+            cs.CurseLimit = reader.ReadInt32();
     }
 
     public override void SetKillCooldown(byte id) => Main.AllPlayerKillCooldown[id] = CurseLimit >= 1 ? CurseCooldown.GetFloat() + (CurseMax.GetInt() - CurseLimit) * CurseCooldownIncrese.GetFloat() : 300f;
@@ -68,11 +70,11 @@ internal class CursedSoul : RoleBase
     
     public override bool OnCheckMurderAsKiller(PlayerControl killer, PlayerControl target)
     {
-        if (CurseLimit < 1) return true;
+        if (CurseLimit < 1) return false;
         if (Mini.Age < 18 && (target.Is(CustomRoles.NiceMini) || target.Is(CustomRoles.EvilMini)))
         {
             killer.Notify(Utils.ColorString(Utils.GetRoleColor(CustomRoles.Cultist), GetString("CantRecruit")));
-            return true;
+            return false;
         }
         if (CanBeSoulless(target))
         {
@@ -94,11 +96,11 @@ internal class CursedSoul : RoleBase
 
             Logger.Info("设置职业:" + target?.Data?.PlayerName + " = " + target.GetCustomRole().ToString() + " + " + CustomRoles.Soulless.ToString(), "Assign " + CustomRoles.Soulless.ToString());
             Logger.Info($"{killer.GetNameWithRole()} : 剩余{CurseLimit}次魅惑机会", "CursedSoul");
-            return true;
+            return false;
         }
         killer.Notify(Utils.ColorString(Utils.GetRoleColor(CustomRoles.CursedSoul), GetString("CursedSoulInvalidTarget")));
         Logger.Info($"{killer.GetNameWithRole()} : 剩余{CurseLimit}次魅惑机会", "CursedSoul");
-        return true;
+        return false;
     }
     public override bool KnowRoleTarget(PlayerControl player, PlayerControl target)
         => player.Is(CustomRoles.CursedSoul) && target.Is(CustomRoles.Soulless);

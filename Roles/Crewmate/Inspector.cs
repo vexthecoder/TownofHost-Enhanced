@@ -3,6 +3,7 @@ using System;
 using System.Text;
 using TOHE.Modules.ChatManager;
 using TOHE.Roles.AddOns.Common;
+using TOHE.Roles.Core;
 using UnityEngine;
 using static TOHE.Options;
 using static TOHE.Translator;
@@ -13,9 +14,8 @@ internal class Inspector : RoleBase
 {
     //===========================SETUP================================\\
     private const int Id = 8300;
-    private static readonly HashSet<byte> playerIdList = [];
-    public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    public static bool HasEnabled => CustomRoleManager.HasEnabled(CustomRoles.Inspector);
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateSupport;
     //==================================================================\\
@@ -52,20 +52,17 @@ internal class Inspector : RoleBase
     }
     public override void Init()
     {
-        playerIdList.Clear();
         MaxCheckLimit.Clear();
         RoundCheckLimit.Clear();
     }
 
     public override void Add(byte playerId)
     {
-        playerIdList.Add(playerId);
         MaxCheckLimit.Add(playerId, InspectCheckLimitMax.GetInt());
         RoundCheckLimit.Add(playerId, InspectCheckLimitPerMeeting.GetInt());
     }
     public override void Remove(byte playerId)
     {
-        playerIdList.Remove(playerId);
         MaxCheckLimit.Remove(playerId);
         RoundCheckLimit.Remove(playerId);
     }
@@ -119,7 +116,7 @@ internal class Inspector : RoleBase
         }
         return true;
     }
-    public override void OnReportDeadBody(PlayerControl reported, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reported, GameData.PlayerInfo target)
     {
         foreach (var pid in RoundCheckLimit.Keys)
         {
@@ -404,7 +401,7 @@ internal class Inspector : RoleBase
                 msg += rd.Next(0, 15).ToString();
 
             }
-            var player = Main.AllAlivePlayerControls.ToArray()[rd.Next(0, Main.AllAlivePlayerControls.Length)];
+            var player = Main.AllAlivePlayerControls.RandomElement();
             DestroyableSingleton<HudManager>.Instance.Chat.AddChat(player, msg);
             var writer = CustomRpcSender.Create("MessagesToSend", SendOption.None);
             writer.StartMessage(-1);

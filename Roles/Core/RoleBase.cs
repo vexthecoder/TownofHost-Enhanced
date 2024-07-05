@@ -1,32 +1,60 @@
 ﻿using AmongUs.GameOptions;
 using Hazel;
 using InnerNet;
+using TOHE.Roles.Core;
 using UnityEngine;
 
 namespace TOHE;
 
 public abstract class RoleBase
 {
+    public PlayerState _state;
+#pragma warning disable IDE1006
+    public PlayerControl _Player => Utils.GetPlayerById(_state.PlayerId);
+    public List<byte> _playerIdList => Main.PlayerStates.Values.Where(x => x.MainRole == _state.MainRole).Select(x => x.PlayerId).Cast<byte>().ToList();
+#pragma warning restore IDE1006
+
+    public float AbilityLimit { get; set; } = -100;
+    public virtual bool IsEnable { get; set; } = false;
+    public void OnInit() // CustomRoleManager.RoleClass executes this
+    {
+        IsEnable = false;
+        Init();
+    }
+
+    public void OnAdd(byte playerid) // The player with the class executes this
+    {
+        _state = Main.PlayerStates.Values.FirstOrDefault(state => state.PlayerId == playerid);
+        try {
+            CustomRoleManager.RoleClass.FirstOrDefault(r => r.Key == _state.MainRole).Value.IsEnable = true;
+            this.IsEnable = true; // Not supposed to be used, but some methods may have still implemented that check.
+        } catch { } // temporary try catch
+
+
+        Add(playerid);
+        if (CustomRoleManager.OtherCollectionsSet) // If a role is applied mid-game, filter them again jsut in-case
+        {
+            CustomRoleManager.Add();
+        }
+    }
+
+
     /// <summary>
     /// Variable resets when the game starts.
     /// </summary>
-    public abstract void Init();
-
+    public virtual void Init()
+    { }
     /// <summary>
     /// When role is applied in the game, beginning or during the game.
     /// </summary>
-    public abstract void Add(byte playerId);
+    public virtual void Add(byte playerId)
+    { }
 
     /// <summary>
     /// If role has to be removed from player
     /// </summary>
     public virtual void Remove(byte playerId)
     { }
-
-    /// <summary>
-    /// Make A HashSet(byte) PlayerIdList = []; and check PlayerIdList.Any();
-    /// </summary>
-    public abstract bool IsEnable { get; }
 
     /// <summary>
     /// Used to Determine the CustomRole's BASE
@@ -66,7 +94,10 @@ public abstract class RoleBase
     /// A generic method to send a CustomRole's Gameoptions.
     /// </summary>
     public virtual void ApplyGameOptions(IGameOptions opt, byte playerId)
-    { }
+    {
+        // Set vision
+        opt.SetVision(false);
+    }
 
     /// <summary>
     /// Set a specific kill cooldown
@@ -97,7 +128,7 @@ public abstract class RoleBase
     /// The role's tasks are needed for a task win
     /// </summary>
     public virtual bool HasTasks(GameData.PlayerInfo player, CustomRoles role, bool ForRecompute) => role.IsCrewmate() && !role.IsTasklessCrewmate() && (!ForRecompute || !player.Object.IsAnySubRole(x => x.IsConverted()));
-    
+
     /// <summary>
     /// A generic method to check a Guardian Angel protecting someone.
     /// </summary>
@@ -169,15 +200,27 @@ public abstract class RoleBase
     { }
 
     /// <summary>
-    /// A method to always check the state when target has died (murder, exiled, execute etc..)
+    /// A method to always check the state when targets have died (murder, exiled, execute etc..)
     /// </summary>
     public virtual void OnOtherTargetsReducedToAtoms(PlayerControl DeadPlayer)
     { }
 
+
     /// <summary>
-    /// When the target role died and need run kill flash
+    /// A method to always check the state player has died (murder, exiled, execute etc..). If there is a meeting it will only happen after it.
+    /// </summary>
+    public virtual void OnSelfReducedToAtoms(bool IsAfterMeeting)
+    { }
+
+    /// <summary>
+    /// When someone was died and need to run kill flash for specific role
     /// </summary>
     public virtual bool KillFlashCheck(PlayerControl killer, PlayerControl target, PlayerControl seer) => false;
+
+    /// <summary>
+    /// When the target role has died and kill flash needs to run globally
+    /// </summary>
+    public virtual bool GlobalKillFlashCheck(PlayerControl killer, PlayerControl target, PlayerControl seer) => false;
 
     /// <summary>
     /// Shapeshift animation only from itself
@@ -207,10 +250,15 @@ public abstract class RoleBase
     /// Check start meeting by dead body
     /// </summary>
     public virtual bool OnCheckReportDeadBody(PlayerControl reporter, GameData.PlayerInfo deadBody, PlayerControl killer) => reporter.IsAlive();
+
     /// <summary>
     /// When the meeting was start by report dead body or press meeting button
+    /// target is null when meeting was start by pressing meeting button
+    /// target is not null when meeting was start by report dead body
+    /// When target left the game, it's data in GameData.PlayerInfo is not null, it still has data that can be used
+    /// But if you use target.Object, then it can be null
     /// </summary>
-    public virtual void OnReportDeadBody(PlayerControl reporter, PlayerControl target)
+    public virtual void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
     { }
 
     /// <summary>
@@ -230,8 +278,15 @@ public abstract class RoleBase
     /// <summary>
     /// Check exile role
     /// </summary>
+    public virtual void CheckExile(GameData.PlayerInfo exiled, ref bool DecidedWinner, bool isMeetingHud, ref string name)
+    { }
+
+    /// <summary>
+    /// Check exile target
+    /// </summary>
     public virtual void CheckExileTarget(GameData.PlayerInfo exiled, ref bool DecidedWinner, bool isMeetingHud, ref string name)
     { }
+
     /// <summary>
     /// When player was exiled
     /// </summary>
@@ -272,8 +327,8 @@ public abstract class RoleBase
     /// <summary>
     /// When player left the game
     /// </summary>
-    public virtual void OnPlayerLeft(ClientData clientData)
-    { }
+    //public virtual void OnPlayerLeft(ClientData clientData) Note: instead "OnPlayerLeft" use "OnMurderPlayer" and "isSuicide"
+    //{ }
 
     /// <summary>
     /// When the game starts to ending
@@ -321,17 +376,57 @@ public abstract class RoleBase
     /// Set PlayerName text for the role
     /// </summary>
     public virtual string NotifyPlayerName(PlayerControl seer, PlayerControl target, string TargetPlayerName = "", bool IsForMeeting = false) => string.Empty;
-
+    //
+    //
     // Add Mark/LowerText/Suffix for player
-    public virtual string GetMark(PlayerControl seer, PlayerControl seen = null, bool isForMeeting = false) => string.Empty;
+    // When using this code remember the seer can also see the target, therefore..
+    //
+    // return string.empty if "seer != seen" if only seer should have it
+    // otherwise make some list or byte or smt of sorts to only get the target.
+    // not needed if both should have it.
+    public virtual string GetMark(PlayerControl seer, PlayerControl seen, bool isForMeeting = false) => string.Empty;
     public virtual string GetLowerText(PlayerControl seer, PlayerControl seen = null, bool isForMeeting = false, bool isForHud = false) => string.Empty;
-    public virtual string GetSuffix(PlayerControl seer, PlayerControl seen = null, bool isForMeeting = false) => string.Empty;
+    public virtual string GetSuffix(PlayerControl seer, PlayerControl seen, bool isForMeeting = false) => string.Empty;
     public virtual string GetProgressText(byte playerId, bool comms) => string.Empty;
+
+    public virtual float SetModdedLowerText(out Color32? FaceColor)
+    {
+        FaceColor = null;
+        return 2.8f;
+    }
+
+
+    // 
+    // IMPORTANT note about otherIcons: 
+    // These are only called once in the method, so object attributes are banned (as 99.99% of roles only want the method to run once).
+    // You may use static attributes, tho you can simply just use utils.GetRoleBasesByType<> if need be.
+    //
+    public virtual string GetMarkOthers(PlayerControl seer, PlayerControl seen, bool isForMeeting = false) => string.Empty;
+    public virtual string GetLowerTextOthers(PlayerControl seer, PlayerControl seen = null, bool isForMeeting = false, bool isForHud = false) => string.Empty;
+    public virtual string GetSuffixOthers(PlayerControl seer, PlayerControl seen, bool isForMeeting = false) => string.Empty;
+    
+
 
     // Player know role target, color role target
     public virtual bool KnowRoleTarget(PlayerControl seer, PlayerControl target) => false;
     public virtual string PlayerKnowTargetColor(PlayerControl seer, PlayerControl target) => string.Empty;
     public virtual bool OthersKnowTargetRoleColor(PlayerControl seer, PlayerControl target) => false;
+
+
+    public void OnReceiveRPC(MessageReader reader) 
+    {
+        float Limit = reader.ReadSingle();
+        AbilityLimit = Limit;
+    }
+    public void SendSkillRPC()
+    {
+        MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SyncRoleSkill, SendOption.Reliable, -1);
+        writer.WriteNetObject(_Player);
+        writer.Write(AbilityLimit);
+        AmongUsClient.Instance.FinishRpcImmediately(writer);
+    }
     public virtual void ReceiveRPC(MessageReader reader, PlayerControl pc)
-    { }
+    {
+        OnReceiveRPC(reader); // Default implementation
+    }
 }

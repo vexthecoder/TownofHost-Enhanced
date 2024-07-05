@@ -32,8 +32,8 @@ internal class ControllerManagerUpdatePatch
                 Logger.Info("User canceled Auto Play Again!", "ControllerManager");
                 EndGameManagerPatch.IsRestarting = false;
             }
-            //切换自定义设置的页面
-            if (GameStates.IsLobby)
+            // Do next page
+            if (GameStates.IsLobby && DestroyableSingleton<HudManager>.Instance.Chat.IsClosedOrClosing)
             {
                 if (Input.GetKeyDown(KeyCode.Tab))
                 {
@@ -61,7 +61,7 @@ internal class ControllerManagerUpdatePatch
                     sb.Append(GetString(role.ToString()) + Utils.GetRoleMode(role) + lp.GetRoleInfo(true));
                     if (Options.CustomRoleSpawnChances.TryGetValue(role, out var opt))
                         Utils.ShowChildrenSettings(Options.CustomRoleSpawnChances[role], ref sb, command: true);
-                    HudManager.Instance.ShowPopUp(sb.ToString());
+                    HudManager.Instance.ShowPopUp(sb.ToString() + "<size=0%>tohe</size>");
                 }
                 catch (Exception ex)
                 {
@@ -83,14 +83,10 @@ internal class ControllerManagerUpdatePatch
                     {
                         addDes.Add(GetString($"{subRole}") + Utils.GetRoleMode(subRole) + GetString($"{subRole}InfoLong"));
                     }
-                    if (CustomRolesHelper.RoleExist(CustomRoles.Ntr) && (role is not CustomRoles.GM and not CustomRoles.Ntr))
-                    {
-                        addDes.Add(GetString($"Lovers") + Utils.GetRoleMode(CustomRoles.Lovers) + GetString($"LoversInfoLong"));
-                    }
 
                     addonIndex++;
                     if (addonIndex >= addDes.Count) addonIndex = 0;
-                    HudManager.Instance.ShowPopUp(addDes[addonIndex]);
+                    HudManager.Instance.ShowPopUp(addDes[addonIndex] + "<size=0%>tohe</size>");
                 }
                 catch (Exception ex)
                 {

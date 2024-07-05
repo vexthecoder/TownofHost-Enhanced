@@ -1,11 +1,11 @@
-﻿using Hazel;
-using System;
+﻿using System;
 using UnityEngine;
 using AmongUs.GameOptions;
 using TOHE.Roles.AddOns.Crewmate;
 using static TOHE.Options;
 using static TOHE.Translator;
 using static TOHE.MeetingHudStartPatch;
+using TOHE.Roles.Core;
 
 namespace TOHE.Roles.Neutral;
 
@@ -13,9 +13,7 @@ internal class Virus : RoleBase
 {
     //===========================SETUP================================\\
     private const int Id = 18300;
-    private static readonly HashSet<byte> playerIdList = [];
-    public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    public static bool HasEnabled => CustomRoleManager.HasEnabled(CustomRoles.Virus);
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralKilling;
     //==================================================================\\
@@ -33,9 +31,7 @@ internal class Virus : RoleBase
     private static readonly HashSet<byte> InfectedPlayer = [];
     private static readonly Dictionary<byte, string> VirusNotify = [];
 
-    private static int InfectLimit = new();
-
-    private enum ContagiousCountModeSelect
+    private enum ContagiousCountModeSelectList
     {
         Virus_ContagiousCountMode_None,
         Virus_ContagiousCountMode_Virus,
@@ -54,20 +50,17 @@ internal class Virus : RoleBase
         KnowTargetRole = BooleanOptionItem.Create(Id + 13, "VirusKnowTargetRole", true, TabGroup.NeutralRoles, false).SetParent(CustomRoleSpawnChances[CustomRoles.Virus]);
         TargetKnowOtherTarget = BooleanOptionItem.Create(Id + 14, "VirusTargetKnowOtherTarget", true, TabGroup.NeutralRoles, false).SetParent(CustomRoleSpawnChances[CustomRoles.Virus]);
         KillInfectedPlayerAfterMeeting = BooleanOptionItem.Create(Id + 15, "VirusKillInfectedPlayerAfterMeeting", false, TabGroup.NeutralRoles, false).SetParent(CustomRoleSpawnChances[CustomRoles.Virus]);
-        ContagiousCountMode = StringOptionItem.Create(Id + 18, "Virus_ContagiousCountMode", EnumHelper.GetAllNames<ContagiousCountModeSelect>(), 1, TabGroup.NeutralRoles, false).SetParent(CustomRoleSpawnChances[CustomRoles.Virus]);
+        ContagiousCountMode = StringOptionItem.Create(Id + 18, "Virus_ContagiousCountMode", EnumHelper.GetAllNames<ContagiousCountModeSelectList>(), 1, TabGroup.NeutralRoles, false).SetParent(CustomRoleSpawnChances[CustomRoles.Virus]);
     }
 
     public override void Init()
     {
-        playerIdList.Clear();
         InfectedBodies.Clear();
         VirusNotify.Clear();
-        InfectLimit = new();
     }
     public override void Add(byte playerId)
     {
-        playerIdList.Add(playerId);
-        InfectLimit = InfectMax.GetInt();
+        AbilityLimit = InfectMax.GetInt();
 
         if (!AmongUsClient.Instance.AmHost) return;
         if (!Main.ResetCamPlayerList.Contains(playerId))
@@ -80,56 +73,36 @@ internal class Virus : RoleBase
             AddMsg(VirusNotify[pc.PlayerId], pc.PlayerId, Utils.ColorString(Utils.GetRoleColor(CustomRoles.Virus), GetString("VirusNoticeTitle")));
     }
     public override void MeetingHudClear() => VirusNotify.Clear();
-    private static void SendRPC()
-    {
-        MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SyncRoleSkill, SendOption.Reliable, -1);
-        writer.WritePacked((int)CustomRoles.Virus); //SetVirusInfectLimit
-        writer.Write(InfectLimit);
-        AmongUsClient.Instance.FinishRpcImmediately(writer);
-    }
-
-    private static void SendRPCInfectKill(byte virusId, byte target = 255)
-    {
-        MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.DoSpell, SendOption.Reliable, -1);
-        writer.Write(virusId);
-        writer.Write(target);
-        AmongUsClient.Instance.FinishRpcImmediately(writer);
-    }
-
-    public override void ReceiveRPC(MessageReader reader, PlayerControl NaN)
-    {
-        InfectLimit = reader.ReadInt32();
-    }
     public override void ApplyGameOptions(IGameOptions opt, byte playerId) => opt.SetVision(ImpostorVision.GetBool());
     public override bool OnCheckMurderAsKiller(PlayerControl killer, PlayerControl target)
     {
-        if (InfectLimit < 1) return true;
+        if (AbilityLimit < 1) return true;
         InfectedBodies.Add(target.PlayerId);
         return true;
     }
 
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
     {
-        if (target == null || !target.CanBeInfected()) return;
-        if (!InfectedBodies.Contains(target.PlayerId)) return;
+        if (target == null || !InfectedBodies.Contains(target.PlayerId)) return;
+        if (reporter == null || !reporter.CanBeInfected()) return;
 
-        InfectLimit--;
-        SendRPC();
+        AbilityLimit--;
+        SendSkillRPC();
 
         if (KillInfectedPlayerAfterMeeting.GetBool())
         {
-            InfectedPlayer.Add(target.PlayerId);
+            InfectedPlayer.Add(reporter.PlayerId);
 
-            VirusNotify.Add(target.PlayerId, GetString("VirusNoticeMessage2"));
+            VirusNotify.Add(reporter.PlayerId, GetString("VirusNoticeMessage2"));
         }
         else
         {
-            target.RpcSetCustomRole(CustomRoles.Contagious);
+            reporter.RpcSetCustomRole(CustomRoles.Contagious);
 
-            VirusNotify.Add(target.PlayerId, GetString("VirusNoticeMessage"));
+            VirusNotify.Add(reporter.PlayerId, GetString("VirusNoticeMessage"));
         }
 
-        Logger.Info("Setting up a career:" + target?.Data?.PlayerName + " = " + target.GetCustomRole().ToString() + " + " + CustomRoles.Contagious.ToString(), "Assign " + CustomRoles.Contagious.ToString());
+        Logger.Info("Setting up a career:" + reporter?.Data?.PlayerName + " = " + reporter.GetCustomRole().ToString() + " + " + CustomRoles.Contagious.ToString(), "Assign " + CustomRoles.Contagious.ToString());
     }
     public override bool CanUseKillButton(PlayerControl pc) => true;
     public override bool CanUseImpostorVentButton(PlayerControl pc) => CanVent.GetBool();
@@ -174,7 +147,6 @@ internal class Virus : RoleBase
     private static void RemoveInfectedPlayer(PlayerControl virus)
     {
         InfectedPlayer.Clear();
-        SendRPCInfectKill(virus.PlayerId);
     }
 
     public static bool KnowRole(PlayerControl player, PlayerControl target)
@@ -191,7 +163,7 @@ internal class Virus : RoleBase
         if (seer.Is(CustomRoles.Contagious) && target.Is(CustomRoles.Contagious) && Virus.TargetKnowOtherTarget.GetBool()) return Main.roleColors[CustomRoles.Virus];
         return "";
     }
-    public override string GetProgressText(byte id, bool coooms) => Utils.ColorString(InfectLimit >= 1 ? Utils.GetRoleColor(CustomRoles.Virus).ShadeColor(0.25f) : Color.gray, $"({InfectLimit})");
+    public override string GetProgressText(byte id, bool coooms) => Utils.ColorString(AbilityLimit >= 1 ? Utils.GetRoleColor(CustomRoles.Virus).ShadeColor(0.25f) : Color.gray, $"({AbilityLimit})");
 
 }
 public static class VirusPlayerControls
@@ -199,7 +171,7 @@ public static class VirusPlayerControls
     public static bool CanBeInfected(this PlayerControl pc)
     {
         return true && !pc.Is(CustomRoles.Virus) && !pc.Is(CustomRoles.Contagious) && !pc.Is(CustomRoles.Loyal)
-            && !pc.Is(CustomRoles.Admired) && !pc.Is(CustomRoles.Cultist) && !pc.Is(CustomRoles.Infectious)
+            && !pc.Is(CustomRoles.Admired) && !pc.Is(CustomRoles.Cultist) && !pc.Is(CustomRoles.Infectious) && !pc.Is(CustomRoles.Phantom)
             && !(pc.GetCustomSubRoles().Contains(CustomRoles.Hurried) && !Hurried.CanBeConverted.GetBool());
     }
 }

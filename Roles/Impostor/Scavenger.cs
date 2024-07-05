@@ -6,7 +6,7 @@ internal class Scavenger : RoleBase
     private const int Id = 4400;
     private static readonly HashSet<byte> PlayerIds = [];
     public static bool HasEnabled => PlayerIds.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.ImpostorConcealing;
     //==================================================================\\
@@ -38,8 +38,8 @@ internal class Scavenger : RoleBase
         _ = new LateTask(
             () =>
             {
-                target.SetRealKiller(killer);
                 target.RpcMurderPlayer(target);
+                target.SetRealKiller(killer);
                 RPC.PlaySoundRPC(killer.PlayerId, Sounds.KillSound);
                 target.Notify(Utils.ColorString(Utils.GetRoleColor(CustomRoles.Scavenger), Translator.GetString("KilledByScavenger")), time: 8f);
             },

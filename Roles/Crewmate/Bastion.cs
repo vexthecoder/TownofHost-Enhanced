@@ -14,7 +14,7 @@ internal class Bastion : RoleBase
     private const int Id = 10200;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Engineer;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateKilling;
     //==================================================================\\
@@ -25,7 +25,6 @@ internal class Bastion : RoleBase
     private static OptionItem BastionMaxBombs;
 
     private static readonly HashSet<int> BombedVents = [];
-    private static float BastionNumberOfAbilityUses = 0;
 
     public override void SetupCustomOption()
     {
@@ -39,11 +38,13 @@ internal class Bastion : RoleBase
     }
     public override void Init()
     {
+        playerIdList.Clear();
         BombedVents.Clear();
     }
     public override void Add(byte playerId)
     {
-        BastionNumberOfAbilityUses = BastionMaxBombs.GetInt();
+        playerIdList.Add(playerId);
+        AbilityLimit = BastionMaxBombs.GetInt();
     }
     public override void ApplyGameOptions(IGameOptions opt, byte playerId)
     {
@@ -53,7 +54,7 @@ internal class Bastion : RoleBase
     public override bool OnTaskComplete(PlayerControl player, int completedTaskCount, int totalTaskCount)
     {
         if (player.IsAlive())
-            BastionNumberOfAbilityUses += BastionAbilityUseGainWithEachTaskCompleted.GetFloat();
+            AbilityLimit += BastionAbilityUseGainWithEachTaskCompleted.GetFloat();
         
         return true;
     }
@@ -68,10 +69,10 @@ internal class Bastion : RoleBase
         TextColor15 = comms ? Color.gray : NormalColor15;
         string Completed15 = comms ? "?" : $"{taskState15.CompletedTasksCount}";
         Color TextColor151;
-        if (BastionNumberOfAbilityUses < 1) TextColor151 = Color.red;
+        if (AbilityLimit < 1) TextColor151 = Color.red;
         else TextColor151 = Color.white;
         ProgressText.Append(ColorString(TextColor15, $"({Completed15}/{taskState15.AllTasksCount})"));
-        ProgressText.Append(ColorString(TextColor151, $" <color=#777777>-</color> {Math.Round(BastionNumberOfAbilityUses, 1)}"));
+        ProgressText.Append(ColorString(TextColor151, $" <color=#777777>-</color> {Math.Round(AbilityLimit, 1)}"));
         return ProgressText.ToString();
     }
     public override bool OnCoEnterVentOthers(PlayerPhysics physics, int ventId)
@@ -79,33 +80,33 @@ internal class Bastion : RoleBase
         if (!BombedVents.Contains(ventId)) return false;
 
         var pc = physics.myPlayer;
-        if (pc.GetCustomRole().IsCrewmate() && !pc.Is(CustomRoles.Bastion) && !pc.IsCrewVenter() && !CopyCat.playerIdList.Contains(pc.PlayerId) && !Main.TasklessCrewmate.Contains(pc.PlayerId)) 
+        if (pc.Is(Custom_Team.Crewmate) && !pc.Is(CustomRoles.Bastion) && !pc.IsCrewVenter() && !CopyCat.playerIdList.Contains(pc.PlayerId) && !Main.TasklessCrewmate.Contains(pc.PlayerId)) 
         {
+            Logger.Info("Crewmate enter in bombed vent, bombed is cancel", "Bastion.OnCoEnterVentOther");
             return false;
         }
         else
         {
             _ = new LateTask(() =>
             {
-                foreach (var bastion in Main.AllAlivePlayerControls.Where(bastion => bastion.GetCustomRole() == CustomRoles.Bastion).ToArray())
-                {
-                    pc.SetRealKiller(bastion);
-                    bastion.Notify(GetString("BastionNotify"));
-                    pc.Notify(GetString("EnteredBombedVent"));
+                var bastion = _Player;
+                bastion.Notify(GetString("BastionNotify"));
+                pc.Notify(GetString("EnteredBombedVent"));
 
-                    Main.PlayerStates[pc.PlayerId].deathReason = PlayerState.DeathReason.Bombed;
-                    pc.RpcMurderPlayer(pc);
-                    BombedVents.Remove(ventId);
-                }
+                Main.PlayerStates[pc.PlayerId].deathReason = PlayerState.DeathReason.Bombed;
+                pc.RpcMurderPlayer(pc);
+                pc.SetRealKiller(bastion);
+                BombedVents.Remove(ventId);
             }, 0.5f, "Player bombed by Bastion");
             return true;
         }
     }
     public override void OnEnterVent(PlayerControl pc, Vent vent)
     {
-        if (BastionNumberOfAbilityUses >= 1)
+        if (AbilityLimit >= 1)
         {
-            BastionNumberOfAbilityUses -= 1;
+            AbilityLimit--;
+            SendSkillRPC();
             if (!BombedVents.Contains(vent.Id)) BombedVents.Add(vent.Id);
             pc.Notify(GetString("VentBombSuccess"));
         }
@@ -114,7 +115,7 @@ internal class Bastion : RoleBase
             pc.Notify(GetString("OutOfAbilityUsesDoMoreTasks"));
         }
     }
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
     {
         if (BombsClearAfterMeeting.GetBool())
         {

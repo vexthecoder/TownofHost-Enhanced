@@ -11,7 +11,7 @@ internal class Crewpostor : RoleBase
     private const int Id = 5800;
     private static readonly HashSet<byte> PlayerIds = [];
     public static bool HasEnabled => PlayerIds.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Engineer;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.Madmate;
     //==================================================================\\
@@ -27,7 +27,7 @@ internal class Crewpostor : RoleBase
     public override void SetupCustomOption()
     {
         SetupRoleOptions(Id, TabGroup.ImpostorRoles, CustomRoles.Crewpostor);
-        CanKillAllies = BooleanOptionItem.Create(Id + 2, "CanKillAllies", true, TabGroup.ImpostorRoles, false)
+        CanKillAllies = BooleanOptionItem.Create(Id + 2, "CanKillImpostors", true, TabGroup.ImpostorRoles, false)
             .SetParent(CustomRoleSpawnChances[CustomRoles.Crewpostor]);
         KnowsAllies = BooleanOptionItem.Create(Id + 3, "CrewpostorKnowsAllies", true, TabGroup.ImpostorRoles, false)
             .SetParent(CustomRoleSpawnChances[CustomRoles.Crewpostor]);
@@ -102,6 +102,8 @@ internal class Crewpostor : RoleBase
 
     public override bool OnTaskComplete(PlayerControl player, int completedTaskCount, int totalTaskCount)
     {
+        if (!player.IsAlive()) return true;
+
         if (TasksDone.ContainsKey(player.PlayerId))
             TasksDone[player.PlayerId]++;
         else
@@ -127,15 +129,15 @@ internal class Crewpostor : RoleBase
             {
                 if (!LungeKill.GetBool())
                 {
-                    target.SetRealKiller(player);
                     target.RpcCheckAndMurder(target);
+                    target.SetRealKiller(player);
                     player.RpcGuardAndKill();
                     Logger.Info("No lunge mode kill", "Crewpostor");
                 }
                 else
                 {
-                    target.SetRealKiller(player);
                     player.RpcMurderPlayer(target);
+                    target.SetRealKiller(player);
                     player.RpcGuardAndKill();
                     Logger.Info("lunge mode kill", "Crewpostor");
                 }
@@ -143,8 +145,8 @@ internal class Crewpostor : RoleBase
             }
             else
             {
-                player.SetRealKiller(target);
                 target.RpcMurderPlayer(player);
+                target.SetRealKiller(player);
                 player.RpcGuardAndKill();
                 Logger.Info($"Crewpostor tried to kill pestilence (reflected back)：{target.GetNameWithRole().RemoveHtmlTags()} => {player.GetNameWithRole().RemoveHtmlTags()}", "Pestilence Reflect");
             }

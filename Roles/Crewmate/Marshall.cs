@@ -11,7 +11,7 @@ internal class Marshall : RoleBase
     private const int Id = 11900;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmatePower;
     //==================================================================\\
@@ -51,8 +51,12 @@ internal class Marshall : RoleBase
     
     public override bool OnRoleGuess(bool isUI, PlayerControl target, PlayerControl pc, CustomRoles role, ref bool guesserSuicide)
     {
-        if (!isUI) Utils.SendMessage(GetString("GuessMarshallTask"), pc.PlayerId);
-        else pc.ShowPopUp(GetString("GuessMarshallTask"));
-        return true;
+        if (target.GetPlayerTaskState().IsTaskFinished)
+        {
+            if (!isUI) Utils.SendMessage(GetString("GuessMarshallTask"), pc.PlayerId);
+            else pc.ShowPopUp(GetString("GuessMarshallTask"));
+            return true;
+        }
+        return false;
     }
 }

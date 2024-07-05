@@ -12,7 +12,7 @@ internal class Jailer : RoleBase
     private const int Id = 10600;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateKilling;
     //==================================================================\\
@@ -139,7 +139,7 @@ internal class Jailer : RoleBase
         return false;
     }
     public override void ApplyGameOptions(IGameOptions opt, byte playerId) => opt.SetVision(false);
-    public override void OnReportDeadBody(PlayerControl sob, PlayerControl bakugan)
+    public override void OnReportDeadBody(PlayerControl sob, GameData.PlayerInfo bakugan)
     {
         foreach (var targetId in JailerTarget.Values)
         {
@@ -157,10 +157,10 @@ internal class Jailer : RoleBase
 
     public override void OnVote(PlayerControl voter, PlayerControl target)
     {
-        if (voter == null || target == null) return;
-        if (!voter.Is(CustomRoles.Jailer)) return;
-        if (JailerDidVote[voter.PlayerId]) return;
-        if (JailerTarget[voter.PlayerId] == byte.MaxValue) return;
+        if (voter == null || target == null || !voter.Is(CustomRoles.Jailer)) return;
+        if (JailerDidVote.TryGetValue(voter.PlayerId, out var didVote) && didVote) return;
+        if (JailerTarget.TryGetValue(voter.PlayerId, out var jTarget) && jTarget == byte.MaxValue) return;
+
         JailerDidVote[voter.PlayerId] = true;
         if (target.PlayerId == JailerTarget[voter.PlayerId])
         {

@@ -10,7 +10,7 @@ internal class Butcher : RoleBase
     private const int Id = 24300;
     private static readonly HashSet<byte> PlayerIds = [];
     public static bool HasEnabled => PlayerIds.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.ImpostorKilling;
     //==================================================================\\
@@ -84,7 +84,7 @@ internal class Butcher : RoleBase
     }
 
     public override void AfterMeetingTasks() => MurderTargetLateTask = [];
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target) => MurderTargetLateTask.Clear();
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target) => MurderTargetLateTask.Clear();
 
     public static void OnFixedUpdateOthers(PlayerControl target)
     {
@@ -101,6 +101,7 @@ internal class Butcher : RoleBase
                 Vector2 location = new(ops.x + ((float)(rd.Next(1, 200) - 100) / 100), ops.y + ((float)(rd.Next(1, 200) - 100) / 100));
                 target.RpcTeleport(location);
                 target.RpcMurderPlayer(target);
+                target.SetRealKiller(Utils.GetPlayerById(PlayerIds.First()), true);
                 MurderTargetLateTask[target.PlayerId] = (0, MurderTargetLateTask[target.PlayerId].Item2 + 1, ops);
             }
             else MurderTargetLateTask.Remove(target.PlayerId);

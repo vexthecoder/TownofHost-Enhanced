@@ -11,7 +11,7 @@ internal class President : RoleBase
     private const int Id = 12300;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmatePower;
     //==================================================================\\
@@ -75,7 +75,7 @@ internal class President : RoleBase
                 msg += "finish";
             else
                 msg += "reveal";
-            var player = Main.AllAlivePlayerControls.ToArray()[rd.Next(0, Main.AllAlivePlayerControls.Length)];
+            var player = Main.AllAlivePlayerControls.RandomElement();
             DestroyableSingleton<HudManager>.Instance.Chat.AddChat(player, msg);
             var writer = CustomRpcSender.Create("MessagesToSend", SendOption.None);
             writer.StartMessage(-1);
@@ -226,7 +226,7 @@ internal class President : RoleBase
     }
     public override bool OnRoleGuess(bool isUI, PlayerControl target, PlayerControl guesser, CustomRoles role, ref bool guesserSuicide)
     {
-        if ((target.Is(CustomRoles.President)) && CheckPresidentReveal[target.PlayerId] && !PresidentCanBeGuessedAfterRevealing.GetBool())
+        if (CheckPresidentReveal[target.PlayerId] && !PresidentCanBeGuessedAfterRevealing.GetBool())
         {
             Utils.SendMessage(GetString("GuessPresident"), guesser.PlayerId);
             return true;

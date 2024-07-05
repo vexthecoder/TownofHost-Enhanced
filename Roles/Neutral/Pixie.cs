@@ -1,4 +1,6 @@
 ﻿using Hazel;
+using InnerNet;
+using TOHE.Roles.Core;
 using static TOHE.Options;
 using static TOHE.Translator;
 
@@ -7,9 +9,7 @@ internal class Pixie : RoleBase
 {
     //===========================SETUP================================\\
     private const int Id = 25900;
-    private static readonly HashSet<byte> playerIdList = [];
-    public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    public static bool HasEnabled => CustomRoleManager.HasEnabled(CustomRoles.Pirate);
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralBenign;
     //==================================================================\\
@@ -35,14 +35,12 @@ internal class Pixie : RoleBase
     }
     public override void Init()
     {
-        playerIdList.Clear();
         PixieTargets.Clear();
         PixiePoints.Clear();
     }
 
     public override void Add(byte playerId)
     {
-        playerIdList.Add(playerId);
         PixieTargets[playerId] = [];
         PixiePoints.Add(playerId, 0);
 
@@ -53,7 +51,6 @@ internal class Pixie : RoleBase
 
     public override void Remove(byte playerId)
     {
-        playerIdList.Remove(playerId);
         PixieTargets.Remove(playerId);
         PixiePoints.Remove(playerId);
     }
@@ -75,10 +72,10 @@ internal class Pixie : RoleBase
         if (seer.Is(CustomRoles.Pixie) && PixieTargets[seer.PlayerId].Contains(target.PlayerId)) color = Main.roleColors[CustomRoles.Pixie];
         return color;
     }
-    public static void SendRPC(byte pixieId, bool operate, byte targetId = 0xff)
+    public void SendRPC(byte pixieId, bool operate, byte targetId = 0xff)
     {
         MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SyncRoleSkill, SendOption.Reliable, -1);
-        writer.WritePacked((int)CustomRoles.Pixie); //SetPixieTargets
+        writer.WriteNetObject(_Player); //SetPixieTargets
         writer.Write(pixieId);
         writer.Write(operate);
         if (!operate) // false = 0
@@ -111,7 +108,7 @@ internal class Pixie : RoleBase
         }
     }
 
-    public override bool OnCheckMurderAsKiller(PlayerControl killer, PlayerControl target)
+    public override bool ForcedCheckMurderAsKiller(PlayerControl killer, PlayerControl target)
     {
         if (killer == null || target == null) return false;
         byte targetId = target.PlayerId;

@@ -1,9 +1,9 @@
 ﻿using Hazel;
 using TOHE.Modules;
-using TOHE.Roles.Core;
 using TOHE.Roles.Neutral;
 using UnityEngine;
 using static TOHE.Options;
+
 
 namespace TOHE.Roles.Impostor;
 
@@ -13,7 +13,7 @@ internal class Lightning : RoleBase
     private const int Id = 24100;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.ImpostorConcealing;
     //==================================================================\\
@@ -44,7 +44,6 @@ internal class Lightning : RoleBase
     {
         playerIdList.Add(playerId);
 
-        CustomRoleManager.MarkOthers.Add(GetMarkInGhostPlayer);
     }
     private static void SendRPC(byte playerId)
     {
@@ -142,8 +141,8 @@ internal class Lightning : RoleBase
 
                 deList.Add(gs.PlayerId);
                 Main.PlayerStates[gs.PlayerId].deathReason = PlayerState.DeathReason.Quantization;
-                gs.SetRealKiller(RealKiller[gs.PlayerId]);
                 gs.RpcMurderPlayer(gs);
+                gs.SetRealKiller(RealKiller[gs.PlayerId]);
 
                 Logger.Info($"{gs.GetNameWithRole()} As a quantum ghost dying from a collision", "Lightning");
                 break;
@@ -156,7 +155,7 @@ internal class Lightning : RoleBase
             Utils.NotifyRoles();
         }
     }
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
     {
         foreach (var ghost in GhostPlayer.ToArray())
         {
@@ -171,12 +170,10 @@ internal class Lightning : RoleBase
         Utils.NotifyRoles();
     }
 
-    private string GetMarkInGhostPlayer(PlayerControl seer, PlayerControl target = null, bool isForMeeting = false)
+    public override string GetMarkOthers(PlayerControl seer, PlayerControl target, bool isForMeeting = false)
     {
         if (isForMeeting) return string.Empty;
-
         target ??= seer;
-
         return (!seer.IsAlive() && seer != target && IsGhost(target)) || IsGhost(target) ? Utils.ColorString(Utils.GetRoleColor(CustomRoles.Lightning), "■") : string.Empty;
     }
 

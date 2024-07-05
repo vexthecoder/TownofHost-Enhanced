@@ -12,7 +12,7 @@ internal class Mastermind : RoleBase
 
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.ImpostorConcealing;
     //==================================================================\\
@@ -116,9 +116,9 @@ internal class Mastermind : RoleBase
             {
                 ManipulatedPlayers.Remove(x.Key);
                 TempKCDs.Remove(x.Key);
-                player.SetRealKiller(mastermind);
                 Main.PlayerStates[player.PlayerId].deathReason = PlayerState.DeathReason.Suicide;
                 player.RpcMurderPlayer(player);
+                player.SetRealKiller(mastermind);
                 RPC.PlaySoundRPC(mastermind.PlayerId, Sounds.KillSound);
             }
 
@@ -128,7 +128,7 @@ internal class Mastermind : RoleBase
         }
     }
 
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
     {
         foreach (var x in ManipulatedPlayers)
         {
@@ -136,8 +136,8 @@ internal class Mastermind : RoleBase
             if (pc.IsAlive())
             {
                 Main.PlayerStates[pc.PlayerId].deathReason = PlayerState.DeathReason.Suicide;
-                pc.SetRealKiller(GetPlayerById(playerIdList.First()));
                 pc.RpcMurderPlayer(pc);
+                pc.SetRealKiller(GetPlayerById(playerIdList.First()));
             }
         }
         ManipulateDelays.Clear();

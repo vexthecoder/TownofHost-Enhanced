@@ -10,7 +10,7 @@ internal class GuardianAngelTOHE : RoleBase
     private const int Id = 20900;
     private static readonly HashSet<byte> PlayerIds = [];
     public static bool HasEnabled => PlayerIds.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.GuardianAngel;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateVanillaGhosts;
     //==================================================================\\
@@ -63,8 +63,19 @@ internal class GuardianAngelTOHE : RoleBase
             PlayerShield.Remove(target.PlayerId);
     }
     public override bool CheckMurderOnOthersTarget(PlayerControl killer, PlayerControl target)
-        => PlayerShield.ContainsKey(target.PlayerId);
-    
+    {
+        if (PlayerShield.ContainsKey(target.PlayerId))
+        {
+            if (ImpVis.GetBool())
+            {
+                killer.SetKillCooldown();
+                killer.RpcGuardAndKill(target);
+            }
+            return true;
+        }
+        return false;
+    }
+
     private void OnOthersFixUpdate(PlayerControl player)
     {
         if (PlayerShield.ContainsKey(player.PlayerId) && PlayerShield[player.PlayerId] + ProtectDur.GetInt() <= Utils.GetTimeStamp())

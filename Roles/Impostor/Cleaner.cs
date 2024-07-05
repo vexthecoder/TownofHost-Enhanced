@@ -8,7 +8,7 @@ internal class Cleaner : RoleBase
     private const int Id = 3000;
     private static readonly HashSet<byte> Playerids = [];
     public static bool HasEnabled => Playerids.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.ImpostorSupport;
     //==================================================================\\
@@ -48,15 +48,13 @@ internal class Cleaner : RoleBase
 
         if (reporter.Is(CustomRoles.Cleaner))
         {
-            var target = deadBody.Object;
-
-            CleanerBodies.Remove(target.PlayerId);
-            CleanerBodies.Add(target.PlayerId);
+            CleanerBodies.Remove(deadBody.PlayerId);
+            CleanerBodies.Add(deadBody.PlayerId);
 
             reporter.Notify(Translator.GetString("CleanerCleanBody"));
             reporter.SetKillCooldownV3(KillCooldownAfterCleaning.GetFloat(), forceAnime: true);
 
-            Logger.Info($"Cleaner: {reporter.GetRealName()} clear body: {target.GetRealName()}", "Cleaner");
+            Logger.Info($"Cleaner: {reporter.GetRealName()} clear body: {deadBody.PlayerName}", "Cleaner");
             return false;
         }
 

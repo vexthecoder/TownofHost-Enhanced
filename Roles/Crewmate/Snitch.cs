@@ -1,7 +1,8 @@
-using TOHE.Roles.Core;
+using Hazel;
 using UnityEngine;
 using static TOHE.Translator;
 using static TOHE.Options;
+using InnerNet;
 
 namespace TOHE.Roles.Crewmate;
 
@@ -11,7 +12,7 @@ internal class Snitch : RoleBase
     private const int Id = 9500;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateSupport;
     //==================================================================\\
@@ -69,9 +70,6 @@ internal class Snitch : RoleBase
 
         IsExposed[playerId] = false;
         IsComplete[playerId] = false;
-
-        CustomRoleManager.MarkOthers.Add(GetWarningMark);
-        CustomRoleManager.SuffixOthers.Add(GetWarningArrow);
     }
     public override void Remove(byte playerId)
     {
@@ -94,7 +92,7 @@ internal class Snitch : RoleBase
     private static bool IsSnitchTarget(PlayerControl target)
         => HasEnabled && (target.Is(Custom_Team.Impostor) && !target.Is(CustomRoles.Trickster) || (target.IsNeutralKiller() && CanFindNeutralKiller) || (target.Is(CustomRoles.Madmate) && CanFindMadmate) || (target.Is(CustomRoles.Rascal) && CanFindMadmate));
     
-    private static void CheckTask(PlayerControl snitch)
+    private void CheckTask(PlayerControl snitch)
     {
         if (!snitch.IsAlive() || snitch.Is(CustomRoles.Madmate)) return;
 
@@ -110,6 +108,7 @@ internal class Snitch : RoleBase
                 TargetArrow.Add(target.PlayerId, snitchId);
             }
             IsExposed[snitchId] = true;
+            SendRPC(0, snitchId);
         }
 
         if (IsComplete[snitchId] || !snitchTask.IsTaskFinished) return;
@@ -137,6 +136,7 @@ internal class Snitch : RoleBase
         snitch.Notify(GetString("SnitchDoneTasks"));
 
         IsComplete[snitchId] = true;
+        SendRPC(1, snitchId);
     }
 
     public override bool OnTaskComplete(PlayerControl player, int completedTaskCount, int totalTaskCount)
@@ -147,9 +147,56 @@ internal class Snitch : RoleBase
         return true;
     }
 
-    public override string GetMark(PlayerControl seer, PlayerControl seen = null, bool isForMeeting = false)
+    private void SendRPC(byte RpcTypeId, byte snitchId)
     {
-        if (seen == null) return string.Empty;
+        MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SyncRoleSkill, SendOption.Reliable, -1);
+        writer.WriteNetObject(_Player);
+        writer.Write(RpcTypeId);
+        writer.Write(snitchId);
+        AmongUsClient.Instance.FinishRpcImmediately(writer);
+    }
+    public override void ReceiveRPC(MessageReader reader, PlayerControl pc)
+    {
+        var RpcTypeId = reader.ReadByte();
+        var snitchId = reader.ReadByte();
+
+        switch (RpcTypeId)
+        {
+            case 0:
+                foreach (var target in Main.AllAlivePlayerControls)
+                {
+                    if (!IsSnitchTarget(target)) continue;
+
+                    TargetArrow.Add(target.PlayerId, snitchId);
+                }
+                IsExposed[snitchId] = true;
+                break;
+            case 1:
+                if (EnableTargetArrow)
+                {
+                    foreach (var target in Main.AllAlivePlayerControls)
+                    {
+                        if (!IsSnitchTarget(target)) continue;
+                        
+                        var targetId = target.PlayerId;
+                        TargetArrow.Add(snitchId, targetId);
+
+                        if (!TargetList.Contains(targetId))
+                        {
+                            TargetList.Add(targetId);
+
+                            if (CanGetColoredArrow)
+                                TargetColorlist.Add(targetId, target.GetRoleColor());
+                        }
+                    }
+                }
+                IsComplete[snitchId] = true;
+                break;
+        }
+    }
+    public override string GetMark(PlayerControl seer, PlayerControl seen, bool isForMeeting = false)
+    {
+        if (seen == seer) return string.Empty;
 
         return IsSnitchTarget(seen) && IsComplete[seer.PlayerId] ? Utils.ColorString(RoleColor, "⚠") : string.Empty;
     }
@@ -167,13 +214,14 @@ internal class Snitch : RoleBase
         return arrows;
     }
 
-    private string GetWarningMark(PlayerControl seer, PlayerControl target = null, bool isForMeeting = false)
+    public override string GetMarkOthers(PlayerControl seer, PlayerControl target, bool isForMeeting = false)
     {
         if (target == null) return string.Empty;
 
         return IsSnitchTarget(seer) && GetExpose(target) ? Utils.ColorString(RoleColor, "⚠") : string.Empty;
     }
-    private string GetWarningArrow(PlayerControl seer, PlayerControl target = null, bool isForMeeting = false)
+
+    public override string GetSuffixOthers(PlayerControl seer, PlayerControl target, bool isForMeeting = false)
     {
         if (target != null && seer.PlayerId != target.PlayerId) return string.Empty;
         if (!IsSnitchTarget(seer) || isForMeeting) return string.Empty;
@@ -190,7 +238,7 @@ internal class Snitch : RoleBase
 
     public override bool OnRoleGuess(bool isUI, PlayerControl target, PlayerControl pc, CustomRoles role, ref bool guesserSuicide)
     {
-        if (target.Is(CustomRoles.Snitch) && target.GetPlayerTaskState().IsTaskFinished)
+        if (target.GetPlayerTaskState().IsTaskFinished)
         {
             if (!isUI) Utils.SendMessage(GetString("EGGuessSnitchTaskDone"), pc.PlayerId);
             else pc.ShowPopUp(GetString("EGGuessSnitchTaskDone"));

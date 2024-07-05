@@ -1,6 +1,8 @@
 using AmongUs.GameOptions;
 using Hazel;
+using InnerNet;
 using System;
+using TOHE.Roles.Core;
 using static TOHE.Options;
 using static TOHE.Translator;
 
@@ -10,9 +12,7 @@ internal class Huntsman : RoleBase
 {
     //===========================SETUP================================\\
     private const int Id = 16500;
-    private static readonly HashSet<byte> playerIdList = [];
-    public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    public static bool HasEnabled => CustomRoleManager.HasEnabled(CustomRoles.Huntsman);
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralKilling;
     //==================================================================\\
@@ -26,8 +26,8 @@ internal class Huntsman : RoleBase
     private static OptionItem MinKCD;
     private static OptionItem MaxKCD;
 
-    private static readonly HashSet<byte> Targets = [];
-    private static float KCD = 25;
+    private readonly HashSet<byte> Targets = [];
+    private float KCD = 25;
 
     public override void SetupCustomOption()
     {
@@ -48,14 +48,8 @@ internal class Huntsman : RoleBase
         MinKCD = FloatOptionItem.Create(Id + 17, "HHMinKCD", new(0f, 180f, 2.5f), 10f, TabGroup.NeutralRoles, false).SetParent(CustomRoleSpawnChances[CustomRoles.Huntsman])
             .SetValueFormat(OptionFormat.Seconds);
     }
-    public override void Init()
-    {
-        playerIdList.Clear();
-        Targets.Clear();
-    }
     public override void Add(byte playerId)
     {
-        playerIdList.Add(playerId);
 
         _ = new LateTask(() =>
         {
@@ -69,10 +63,10 @@ internal class Huntsman : RoleBase
             Main.ResetCamPlayerList.Add(playerId);
     }
 
-    public static void SendRPC(bool isSetTarget, byte targetId = byte.MaxValue)
+    public void SendRPC(bool isSetTarget, byte targetId = byte.MaxValue)
     {
         MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SyncRoleSkill, SendOption.Reliable, -1);
-        writer.WritePacked((int)CustomRoles.Huntsman);
+        writer.WriteNetObject(_Player);
         writer.Write(isSetTarget);
         if (isSetTarget)
         {
@@ -93,7 +87,7 @@ internal class Huntsman : RoleBase
     }
 
     public override void ApplyGameOptions(IGameOptions opt, byte id) => opt.SetVision(HasImpostorVision.GetBool());
-    public override void OnReportDeadBody(PlayerControl Ronaldo, PlayerControl IsTheGoat)
+    public override void OnReportDeadBody(PlayerControl Ronaldo, GameData.PlayerInfo IsTheGoat)
     {
         ResetTargets(isStartedGame: false);
     }
@@ -128,7 +122,7 @@ internal class Huntsman : RoleBase
         }
         return targetId != 0xff ? GetString("Targets") + $"<b><color=#ff1919>{output}</color></b>" : string.Empty;
     }
-    private static void ResetTargets(bool isStartedGame = false)
+    private void ResetTargets(bool isStartedGame = false)
     {
         if (!AmongUsClient.Instance.AmHost) return;
 
@@ -144,7 +138,7 @@ internal class Huntsman : RoleBase
             {
                 var cTargets = new List<PlayerControl>(Main.AllAlivePlayerControls.Where(pc => !Targets.Contains(pc.PlayerId) && pc.GetCustomRole() != CustomRoles.Huntsman));
                 var rand = IRandom.Instance;
-                var target = cTargets[rand.Next(0, cTargets.Count)];
+                var target = cTargets.RandomElement();
                 var targetId = target.PlayerId;
                 Targets.Add(targetId);
                 SendRPC(isSetTarget: true, targetId: targetId);

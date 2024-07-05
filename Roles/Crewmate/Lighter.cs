@@ -13,7 +13,7 @@ internal class Lighter : RoleBase
     private const int Id = 8400;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Engineer;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateSupport;
     //==================================================================\\
@@ -93,7 +93,7 @@ internal class Lighter : RoleBase
             pc.Notify(GetString("OutOfAbilityUsesDoMoreTasks"));
         }
     }
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target) => Timer.Clear();
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target) => Timer.Clear();
     public override string GetProgressText(byte playerId, bool comms)
     {
         var ProgressText = new StringBuilder();

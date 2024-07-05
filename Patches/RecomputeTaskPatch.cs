@@ -9,13 +9,13 @@ class CustomTaskCountsPatch
 
         __instance.TotalTasks = 0;
         __instance.CompletedTasks = 0;
-        foreach (var p in __instance.AllPlayers.ToArray())
+        foreach (var p in __instance.AllPlayers)
         {
             if (p == null) continue;
             var hasTasks = Utils.HasTasks(p) && Main.PlayerStates[p.PlayerId].TaskState.AllTasksCount > 0;
             if (hasTasks)
             {
-                foreach (var task in p.Tasks.ToArray())
+                foreach (var task in p.Tasks)
                 {
                     __instance.TotalTasks++;
                     if (task.Complete) __instance.CompletedTasks++;

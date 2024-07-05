@@ -34,7 +34,7 @@ public static class MessageReaderUpdateSystemPatch
 {
     public static bool Prefix(ShipStatus __instance, [HarmonyArgument(0)] SystemTypes systemType, [HarmonyArgument(1)] PlayerControl player, [HarmonyArgument(2)] MessageReader reader)
     {
-        if (systemType is SystemTypes.Ventilation) return true;
+        if (systemType is SystemTypes.Ventilation or SystemTypes.Security) return true;
         if (GameStates.IsHideNSeek) return true;
 
         var amount = MessageReader.Get(reader).ReadByte();
@@ -48,7 +48,7 @@ public static class MessageReaderUpdateSystemPatch
     }
     public static void Postfix(ShipStatus __instance, [HarmonyArgument(0)] SystemTypes systemType, [HarmonyArgument(1)] PlayerControl player, [HarmonyArgument(2)] MessageReader reader)
     {
-        if (systemType is SystemTypes.Ventilation) return;
+        if (systemType is SystemTypes.Ventilation or SystemTypes.Security) return;
         if (GameStates.IsHideNSeek) return;
 
         UpdateSystemPatch.Postfix(__instance, systemType, player, MessageReader.Get(reader).ReadByte());
@@ -88,8 +88,8 @@ class UpdateSystemPatch
         if (player.Is(CustomRoles.Unlucky) && player.IsAlive()
             && (systemType is SystemTypes.Doors))
         {
-            Unlucky.SuicideRand(player, Unlucky.StateSuicide.OpenDoor);
-            if (Unlucky.UnluckCheck[player.PlayerId]) return false;
+            if (Unlucky.SuicideRand(player, Unlucky.StateSuicide.OpenDoor)) 
+                return false;
         }
 
         player.GetRoleClass()?.UpdateSystem(__instance, systemType, amount, player);
@@ -167,6 +167,23 @@ class StartPatch
             {
                 BepInEx.ConsoleManager.DetachConsole();
                 Logger.SendInGame(GetString("Warning.CanNotUseBepInExConsole"));
+            }
+        }
+
+        if (GameStates.PolusIsActive && Main.EnableCustomDecorations.Value)
+        {
+            var Dropship = GameObject.Find("Dropship/panel_fuel");
+            if (Dropship != null)
+            {
+                var Decorations = UnityEngine.Object.Instantiate(Dropship, GameObject.Find("Dropship")?.transform);
+                Decorations.name = "Dropship_Decorations";
+                Decorations.transform.DestroyChildren();
+                UnityEngine.Object.Destroy(Decorations.GetComponent<Console>());
+                UnityEngine.Object.Destroy(Decorations.GetComponent<BoxCollider2D>());
+                UnityEngine.Object.Destroy(Decorations.GetComponent<PassiveButton>());
+                Decorations.GetComponent<SpriteRenderer>().sprite = Utils.LoadSprite("TOHE.Resources.Images.Dropship-Decorations.png", 100f);
+                Decorations.transform.SetSiblingIndex(1);
+                Decorations.transform.localPosition = new(0.0709f, 0.73f);
             }
         }
     }

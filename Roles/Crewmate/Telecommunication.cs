@@ -14,7 +14,7 @@ internal class Telecommunication : RoleBase
     private const int Id = 12500;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CanVent.GetBool() ? CustomRoles.Engineer : CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmatePower;
     //==================================================================\\
@@ -55,7 +55,7 @@ internal class Telecommunication : RoleBase
     private static int Count = 0;
     public override void ApplyGameOptions(IGameOptions opt, byte playerId)
     {
-        AURoleOptions.EngineerCooldown = 0f;
+        AURoleOptions.EngineerCooldown = 1f;
         AURoleOptions.EngineerInVentMaxTime = 0f;
     }
     public override void OnFixedUpdateLowLoad(PlayerControl player)
@@ -152,7 +152,7 @@ internal class Telecommunication : RoleBase
     }
     public override string GetSuffix(PlayerControl seer, PlayerControl seen = null, bool isForMeeting = false)
     {
-        if (isForMeeting) return string.Empty;
+        if (seer.PlayerId != seen.PlayerId || isForMeeting) return string.Empty;
 
         StringBuilder sb = new();
         if (IsAdminWatch) sb.Append(ColorString(GetRoleColor(CustomRoles.Telecommunication), "★")).Append(ColorString(GetRoleColor(CustomRoles.Telecommunication), GetString("AdminWarning")));

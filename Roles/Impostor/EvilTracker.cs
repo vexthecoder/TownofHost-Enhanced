@@ -1,6 +1,6 @@
 using AmongUs.GameOptions;
 using Hazel;
-using Il2CppSystem.Text;
+using System.Text;
 using UnityEngine;
 using static TOHE.Options;
 using static TOHE.Translator;
@@ -13,7 +13,7 @@ internal class EvilTracker : RoleBase
     private const int Id = 1400;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => (TargetMode)OptionTargetMode.GetValue() == TargetMode.Never ? CustomRoles.Impostor : CustomRoles.Shapeshifter;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.ImpostorKilling;
     //==================================================================\\
@@ -96,7 +96,7 @@ internal class EvilTracker : RoleBase
         hud.AbilityButton.OverrideText(GetString("EvilTrackerChangeButtonText"));
     }
 
-    public override bool KillFlashCheck(PlayerControl killer, PlayerControl target, PlayerControl seer) => CanSeeKillFlash;
+    public override bool KillFlashCheck(PlayerControl killer, PlayerControl target, PlayerControl seer) => CanSeeKillFlash && killer.PlayerId != seer.PlayerId;
 
     private static bool CanTarget(byte playerId)
         => !Main.PlayerStates[playerId].IsDead && CanSetTarget.TryGetValue(playerId, out var value) && value;

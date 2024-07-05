@@ -6,15 +6,14 @@ using TOHE.Roles.Core;
 using static TOHE.Utils;
 using static TOHE.Translator;
 
+
 namespace TOHE.Roles.Crewmate;
 
 internal class Medic : RoleBase
 {
     //===========================SETUP================================\\
     private const int Id = 8600;
-    private static readonly HashSet<byte> playerIdList = [];
-    public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    public static bool HasEnabled => CustomRoleManager.HasEnabled(CustomRoles.Medic);
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateSupport;
     //==================================================================\\
@@ -27,12 +26,10 @@ internal class Medic : RoleBase
     public static OptionItem GuesserIgnoreShield;
 
     public static readonly List<byte> ProtectList = [];
-    private static readonly Dictionary<byte, int> ProtectLimit = [];
 
     private static byte TempMarkProtected;
-    private static int SkillLimit;
 
-    private enum SelectOptions
+    private enum SelectOptionsList
     {
         Medic_SeeMedicAndTarget,
         Medic_SeeMedic,
@@ -40,23 +37,23 @@ internal class Medic : RoleBase
         Medic_SeeNoOne
     }
 
-    private enum ShieldDeactivationIsVisible
+    private enum ShieldDeactivationIsVisibleList
     {
-        MedicShieldDeactivationIsVisible_DeactivationImmediately,
-        MedicShieldDeactivationIsVisible_DeactivationAfterMeeting,
-        MedicShieldDeactivationIsVisible_DeactivationIsVisibleOFF
+        MedicShieldDeactivationIsVisible_Immediately,
+        MedicShieldDeactivationIsVisible_AfterMeeting,
+        MedicShieldDeactivationIsVisible_OFF
     }
 
     public override void SetupCustomOption()
     {
         Options.SetupRoleOptions(Id, TabGroup.CrewmateRoles, CustomRoles.Medic);
-        WhoCanSeeProtectOpt = StringOptionItem.Create(Id + 10, "MedicWhoCanSeeProtect", EnumHelper.GetAllNames<SelectOptions>(), 0, TabGroup.CrewmateRoles, false)
+        WhoCanSeeProtectOpt = StringOptionItem.Create(Id + 10, "MedicWhoCanSeeProtect", EnumHelper.GetAllNames<SelectOptionsList>(), 0, TabGroup.CrewmateRoles, false)
             .SetParent(Options.CustomRoleSpawnChances[CustomRoles.Medic]);
-        KnowShieldBrokenOpt = StringOptionItem.Create(Id + 16, "MedicKnowShieldBroken", EnumHelper.GetAllNames<SelectOptions>(), 1, TabGroup.CrewmateRoles, false)
+        KnowShieldBrokenOpt = StringOptionItem.Create(Id + 16, "MedicKnowShieldBroken", EnumHelper.GetAllNames<SelectOptionsList>(), 1, TabGroup.CrewmateRoles, false)
            .SetParent(Options.CustomRoleSpawnChances[CustomRoles.Medic]);
         ShieldDeactivatesWhenMedicDies = BooleanOptionItem.Create(Id + 24, "MedicShieldDeactivatesWhenMedicDies", true, TabGroup.CrewmateRoles, false)
             .SetParent(Options.CustomRoleSpawnChances[CustomRoles.Medic]);
-        ShieldDeactivationIsVisibleOpt = StringOptionItem.Create(Id + 25, "MedicShielDeactivationIsVisible", EnumHelper.GetAllNames<ShieldDeactivationIsVisible>(), 0, TabGroup.CrewmateRoles, false)
+        ShieldDeactivationIsVisibleOpt = StringOptionItem.Create(Id + 25, "MedicShielDeactivationIsVisible", EnumHelper.GetAllNames<ShieldDeactivationIsVisibleList>(), 0, TabGroup.CrewmateRoles, false)
             .SetParent(ShieldDeactivatesWhenMedicDies);
         ResetCooldown = FloatOptionItem.Create(Id + 30, "MedicResetCooldown", new(0f, 120f, 1f), 10f, TabGroup.CrewmateRoles, false)
             .SetParent(Options.CustomRoleSpawnChances[CustomRoles.Medic])
@@ -66,18 +63,12 @@ internal class Medic : RoleBase
     }
     public override void Init()
     {
-        playerIdList.Clear();
         ProtectList.Clear();
-        ProtectLimit.Clear();
         TempMarkProtected = byte.MaxValue;
-        SkillLimit = 1;
     }
     public override void Add(byte playerId)
     {
-        playerIdList.Add(playerId);
-        ProtectLimit.TryAdd(playerId, SkillLimit);
-
-        CustomRoleManager.MarkOthers.Add(GetMarkForOthers);
+        AbilityLimit = 1;
 
         if (AmongUsClient.Instance.AmHost)
         {
@@ -85,31 +76,10 @@ internal class Medic : RoleBase
                 Main.ResetCamPlayerList.Add(playerId);
         }
     }
-    public override void Remove(byte playerId)
-    {
-        playerIdList.Remove(playerId);
-        ProtectLimit.Remove(playerId);
-    }
-    private static void SendRPC(byte playerId)
-    {
-        MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SyncRoleSkill, SendOption.Reliable, -1);
-        writer.WritePacked((int)CustomRoles.Medic);
-        writer.Write(playerId);
-        writer.Write(ProtectLimit[playerId]);
-        AmongUsClient.Instance.FinishRpcImmediately(writer);
-    }
-    public override void ReceiveRPC(MessageReader reader, PlayerControl NaN)
-    {
-        byte PlayerId = reader.ReadByte();
-        int Limit = reader.ReadInt32();
-        if (ProtectLimit.ContainsKey(PlayerId))
-            ProtectLimit[PlayerId] = Limit;
-        else
-            ProtectLimit.Add(PlayerId, SkillLimit);
-    }
     private static void SendRPCForProtectList()
     {
         MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SetMedicalerProtectList, SendOption.Reliable, -1);
+        writer.Write(TempMarkProtected);
         writer.Write(ProtectList.Count);
         for (int i = 0; i < ProtectList.Count; i++)
             writer.Write(ProtectList[i]);
@@ -117,6 +87,7 @@ internal class Medic : RoleBase
     }
     public static void ReceiveRPCForProtectList(MessageReader reader)
     {
+        TempMarkProtected = reader.ReadByte();
         int count = reader.ReadInt32();
         ProtectList.Clear();
         for (int i = 0; i < count; i++)
@@ -126,13 +97,13 @@ internal class Medic : RoleBase
     public static bool InProtect(byte id)
         => ProtectList.Contains(id) && Main.PlayerStates.TryGetValue(id, out var ps) && !ps.IsDead;
 
-    public static bool CheckKillButton(byte playerId)
+    public bool CheckKillButton(byte playerId)
         => !Main.PlayerStates[playerId].IsDead
-        && ProtectLimit.TryGetValue(playerId, out var x) && x >= 1;
+        && AbilityLimit > 0;
 
     public override bool CanUseKillButton(PlayerControl pc) => CheckKillButton(pc.PlayerId);
     public override void SetKillCooldown(byte id) => Main.AllPlayerKillCooldown[id] = CheckKillButton(id) ? 5f : 300f;
-    public override string GetProgressText(byte playerId, bool comms) => ColorString(CheckKillButton(playerId) ? GetRoleColor(CustomRoles.Medic).ShadeColor(0.25f) : Color.gray, ProtectLimit.TryGetValue(playerId, out var protectLimit) ? $"({protectLimit})" : "Invalid");
+    public override string GetProgressText(byte playerId, bool comms) => ColorString(CheckKillButton(playerId) ? GetRoleColor(CustomRoles.Medic).ShadeColor(0.25f) : Color.gray, $"({AbilityLimit})");
 
     public override bool ForcedCheckMurderAsKiller(PlayerControl killer, PlayerControl target)
     {
@@ -140,10 +111,8 @@ internal class Medic : RoleBase
         if (!CheckKillButton(killer.PlayerId)) return false;
         if (ProtectList.Contains(target.PlayerId)) return false;
 
-        ProtectLimit[killer.PlayerId]--;
-        SkillLimit--;
-
-        SendRPC(killer.PlayerId);
+        AbilityLimit--;
+        SendSkillRPC();
         ProtectList.Add(target.PlayerId);
         TempMarkProtected = target.PlayerId;
         SendRPCForProtectList();
@@ -169,12 +138,14 @@ internal class Medic : RoleBase
         NotifyRoles(SpecifySeer: killer, SpecifyTarget: target);
         NotifyRoles(SpecifySeer: target, SpecifyTarget: killer);
 
-        Logger.Info($"{killer.GetNameWithRole()} : {ProtectLimit[killer.PlayerId]} shields left", "Medic");
+        Logger.Info($"{killer.GetNameWithRole()} : {AbilityLimit} shields left", "Medic");
         return false;
     }
     public override bool CheckMurderOnOthersTarget(PlayerControl killer, PlayerControl target)
     {
-        if (killer == null || target == null) return true;
+
+        var Medics = Utils.GetPlayerListByRole(CustomRoles.Medic);
+        if (killer == null || target == null || Medics == null || !Medics.Any()) return true;
         if (!ProtectList.Contains(target.PlayerId)) return false;
 
         SendRPCForProtectList();
@@ -188,9 +159,8 @@ internal class Medic : RoleBase
         switch (KnowShieldBrokenOpt.GetValue())
         {
             case 0:
-                foreach (var medicId in playerIdList.ToArray())
+                foreach (var medic in Medics)
                 {
-                    var medic = GetPlayerById(medicId);
                     if (medic == null || !medic.IsAlive()) continue;
 
                     medic.Notify(GetString("MedicKillerTryBrokenShieldTargetForMedic"));
@@ -199,9 +169,8 @@ internal class Medic : RoleBase
                 target.Notify(GetString("MedicKillerTryBrokenShieldTargetForTarget"));
                 break;
             case 1:
-                foreach (var medicId in playerIdList.ToArray())
+                foreach (var medic in Medics)
                 {
-                    var medic = GetPlayerById(medicId);
                     if (medic == null || !medic.IsAlive()) continue;
 
                     medic.Notify(GetString("MedicKillerTryBrokenShieldTargetForMedic"));
@@ -223,6 +192,7 @@ internal class Medic : RoleBase
         if (ShieldDeactivationIsVisibleOpt.GetInt() == 1)
         {
             TempMarkProtected = byte.MaxValue;
+            SendRPCForProtectList();
             NotifyRoles();
         }
     }
@@ -238,6 +208,7 @@ internal class Medic : RoleBase
         {
             TempMarkProtected = byte.MaxValue;
         }
+        SendRPCForProtectList();
         NotifyRoles(ForceLoop: true);
     }
     public override void OnMurderPlayerAsTarget(PlayerControl killer, PlayerControl target, bool inMeeting, bool isSuicide)
@@ -251,27 +222,28 @@ internal class Medic : RoleBase
     {
         if (WhoCanSeeProtectOpt.GetInt() is 0 or 1)
         {
-            if (target == null && (InProtect(seer.PlayerId) || TempMarkProtected == seer.PlayerId))
+            if (seer.PlayerId == target.PlayerId && (InProtect(seer.PlayerId) || TempMarkProtected == seer.PlayerId))
             {
                 return ColorString(GetRoleColor(CustomRoles.Medic), "✚");
             }
-            else if (target != null && (InProtect(target.PlayerId) || TempMarkProtected == target.PlayerId))
+            else if (seer.PlayerId != target.PlayerId && (InProtect(target.PlayerId) || TempMarkProtected == target.PlayerId))
             {
                 return ColorString(GetRoleColor(CustomRoles.Medic), "✚");
             }
         }
         return string.Empty;
     }
-    private string GetMarkForOthers(PlayerControl seer, PlayerControl target, bool isformeeting)
+
+    public override string GetMarkOthers(PlayerControl seer, PlayerControl target, bool isForMeeting = false)
     {
         if (!seer.Is(CustomRoles.Medic))
         {
             // The seer sees protect on himself
-            if ((target == null || seer == target) && (InProtect(seer.PlayerId) || TempMarkProtected == seer.PlayerId) && (WhoCanSeeProtectOpt.GetInt() is 0 or 2))
+            if (seer.PlayerId == target.PlayerId && (InProtect(seer.PlayerId) || TempMarkProtected == seer.PlayerId) && (WhoCanSeeProtectOpt.GetInt() is 0 or 2))
             {
                 return ColorString(GetRoleColor(CustomRoles.Medic), "✚");
             }
-            else if (target != null && !seer.IsAlive() && (InProtect(target.PlayerId) || TempMarkProtected == target.PlayerId))
+            else if (seer.PlayerId != target.PlayerId && !seer.IsAlive() && (InProtect(target.PlayerId) || TempMarkProtected == target.PlayerId))
             {
                 // Dead players see protect
                 return ColorString(GetRoleColor(CustomRoles.Medic), "✚");

@@ -149,14 +149,17 @@ public static class BanManager
     public static void CheckBanPlayer(InnerNet.ClientData player)
     {
         if (!AmongUsClient.Instance.AmHost || !Options.ApplyBanList.GetBool()) return;
-        if (CheckBanList(player?.FriendCode, player?.GetHashedPuid()))
+
+        string friendcode = player?.FriendCode;
+
+        if (CheckBanList(friendcode, player?.GetHashedPuid()))
         {
             AmongUsClient.Instance.KickPlayer(player.Id, true);
             Logger.SendInGame(string.Format(GetString("Message.BannedByBanList"), player.PlayerName));
             Logger.Info($"{player.PlayerName}は過去にBAN済みのためBANされました。", "BAN");
             return;
         }
-        if (CheckEACList(player?.FriendCode, player?.GetHashedPuid()))
+        if (CheckEACList(friendcode, player?.GetHashedPuid()))
         {
             AmongUsClient.Instance.KickPlayer(player.Id, true);
             Logger.SendInGame(string.Format(GetString("Message.BannedByEACList"), player.PlayerName));
@@ -176,6 +179,14 @@ public static class BanManager
         bool OnlyCheckPuid = false;
         if (code == "" && hashedpuid != "") OnlyCheckPuid = true;
         else if (code == "") return false;
+
+        string noDiscrim = "";
+        if (code.Contains('#'))
+        {
+            int index = code.IndexOf('#');
+            noDiscrim = code[..index];
+        }
+
         try
         {
             Directory.CreateDirectory("TOHE-DATA");
@@ -186,7 +197,10 @@ public static class BanManager
             {
                 if (line == "") continue;
                 if (!OnlyCheckPuid)
+                {
                     if (line.Contains(code)) return true;
+                    if (!string.IsNullOrEmpty(noDiscrim) && !line.Contains('#') && line.Contains(noDiscrim)) return true;
+                }
                 if (line.Contains(hashedpuid)) return true;
             }
         }

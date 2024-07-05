@@ -11,7 +11,7 @@ internal class SuperStar : RoleBase
     private const int Id = 7150;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateBasic;
     //==================================================================\\
@@ -33,10 +33,8 @@ internal class SuperStar : RoleBase
         playerIdList.Add(playerId);
     }
 
-    public override string GetSuffix(PlayerControl seer, PlayerControl seen = null, bool isForMeeting = false)
-            => seer.Is(CustomRoles.SuperStar) && EveryOneKnowSuperStar.GetBool() ? ColorString(GetRoleColor(CustomRoles.SuperStar), "★") : "";
-    public override string GetMark(PlayerControl seer, PlayerControl seen = null, bool isForMeeting = false)
-            => GetSuffix(seen, seer);
+    public override string GetMarkOthers(PlayerControl seer, PlayerControl seen, bool isForMeeting = false)
+            => seen.Is(CustomRoles.SuperStar) && (seer.PlayerId == seen.PlayerId || EveryOneKnowSuperStar.GetBool()) ? ColorString(GetRoleColor(CustomRoles.SuperStar), "★") : string.Empty;
 
     public override bool OnCheckMurderAsTarget(PlayerControl killer, PlayerControl target)
     {
@@ -47,13 +45,9 @@ internal class SuperStar : RoleBase
     }
     public override bool OnRoleGuess(bool isUI, PlayerControl target, PlayerControl pc, CustomRoles role, ref bool guesserSuicide)
     {
-        if (target.Is(CustomRoles.SuperStar))
-        {
-            if (!isUI) SendMessage(GetString("GuessSuperStar"), pc.PlayerId);
-            else pc.ShowPopUp(GetString("GuessSuperStar"));
-            return true;
-        }
-        return false;
+        if (!isUI) SendMessage(GetString("GuessSuperStar"), pc.PlayerId);
+        else pc.ShowPopUp(GetString("GuessSuperStar"));
+        return true;
     }
     public static bool VisibleToEveryone(PlayerControl target) => target.Is(CustomRoles.SuperStar) && EveryOneKnowSuperStar.GetBool();
     public override bool OthersKnowTargetRoleColor(PlayerControl seer, PlayerControl target) => VisibleToEveryone(target);

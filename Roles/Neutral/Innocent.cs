@@ -10,7 +10,7 @@ internal class Innocent : RoleBase
     private const int Id = 14300;
     private static readonly HashSet<byte> PlayerIds = [];
     public static bool HasEnabled => PlayerIds.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralEvil;
     //==================================================================\\
@@ -45,9 +45,9 @@ internal class Innocent : RoleBase
     public override void CheckExileTarget(GameData.PlayerInfo exiled, ref bool DecidedWinner, bool isMeetingHud, ref string name)
     {
         var role = exiled.GetCustomRole();
-        var pcArray = Main.AllPlayerControls.Where(x => x.Is(CustomRoles.Innocent) && !x.IsAlive() && x.GetRealKiller()?.PlayerId == exiled.PlayerId).ToArray();
+        var pcArray = Main.AllPlayerControls.Where(x => x.Is(CustomRoles.Innocent) && !x.IsAlive() && x.GetRealKiller()?.PlayerId == exiled.PlayerId);
 
-        if (pcArray.Length <= 0) return;
+        if (!pcArray.Any()) return;
 
         if (!InnocentCanWinByImp.GetBool() && role.IsImpostor())
         {

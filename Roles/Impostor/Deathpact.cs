@@ -16,7 +16,7 @@ internal class Deathpact : RoleBase
     private const int Id = 1200;
     private static readonly HashSet<byte> Playerids = [];
     public static bool HasEnabled => Playerids.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Shapeshifter;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.ImpostorKilling;
     //==================================================================\\
@@ -213,8 +213,8 @@ internal class Deathpact : RoleBase
         if (!target.IsAlive()) return;
         
         Main.PlayerStates[target.PlayerId].deathReason = PlayerState.DeathReason.Suicide;
-        target.SetRealKiller(deathpact);
         target.RpcMurderPlayer(target);
+        target.SetRealKiller(deathpact);
     }
 
     public override string GetMark(PlayerControl seer, PlayerControl seen = null, bool isForMeeting = false)
@@ -303,7 +303,7 @@ internal class Deathpact : RoleBase
         }
     }
 
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
     {
         foreach (var deathpact in ActiveDeathpacts.ToArray())
         {

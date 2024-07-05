@@ -11,7 +11,7 @@ internal class Psychic : RoleBase
     private const int Id = 9400;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateSupport;
     //==================================================================\\
@@ -68,7 +68,7 @@ internal class Psychic : RoleBase
         if (seer.Is(CustomRoles.Madmate)) return targetRole.IsNK() || targetRole.IsNE() || targetRole.IsCrewKiller();
         else return RedPlayer != null && RedPlayer.Contains(target.PlayerId);
     }
-    public override void OnReportDeadBody(PlayerControl reported, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reported, GameData.PlayerInfo target)
     {
         if (Fresh.GetBool() || RedPlayer == null || RedPlayer.Count < 1)
             GetRedName();

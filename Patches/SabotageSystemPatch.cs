@@ -1,5 +1,6 @@
 using Hazel;
 using TOHE.Roles.AddOns.Common;
+using TOHE.Roles.Core;
 using TOHE.Roles.Impostor;
 using TOHE.Roles.Neutral;
 using UnityEngine;
@@ -304,19 +305,16 @@ public class SabotageSystemPatch
         }
         private static bool CanSabotage(PlayerControl player, SystemTypes systemType)
         {
-            var playerRole = player.GetCustomRole();
-
             if (systemType is SystemTypes.Comms)
             {
                 if (Camouflager.CantPressCommsSabotageButton(player))
                     return false;
             }
 
-            switch (playerRole)
+            if (player.GetRoleClass() is Glitch gc)
             {
-                case CustomRoles.Glitch:
-                    Glitch.Mimic(player);
-                    return false;
+                gc.Mimic(player);
+                return false;
             }
 
             return player.CanUseSabotage();

@@ -1,6 +1,8 @@
 ﻿using AmongUs.GameOptions;
 using Hazel;
+using InnerNet;
 using System;
+using TOHE.Roles.Core;
 using static TOHE.Translator;
 
 namespace TOHE.Roles.Neutral;
@@ -9,9 +11,7 @@ internal class Taskinator : RoleBase
 {
     //===========================SETUP================================\\
     private const int Id = 13700;
-    private static readonly HashSet<byte> playerIdList = [];
-    public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => false;
+    public static bool HasEnabled => CustomRoleManager.HasEnabled(CustomRoles.Taskinator);
     public override CustomRoles ThisRoleBase => CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralBenign;
     //==================================================================\\
@@ -34,22 +34,19 @@ internal class Taskinator : RoleBase
 
     public override void Init()
     {
-        playerIdList.Clear();
         taskIndex.Clear(); 
         TaskMarkPerRound.Clear();
         maxTasksMarkedPerRound = TaskMarkPerRoundOpt.GetInt();
     }
     public override void Add(byte playerId)
     {
-        playerIdList.Add(playerId);
         TaskMarkPerRound[playerId] = 0;
     }
 
-
-    private static void SendRPC(byte taskinatorID, int taskIndex = -1, bool isKill = false, bool clearAll = false)
+    private void SendRPC(byte taskinatorID, int taskIndex = -1, bool isKill = false, bool clearAll = false)
     {
         MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SyncRoleSkill, SendOption.Reliable, -1);
-        writer.WritePacked((int)CustomRoles.Taskinator); //TaskinatorMarkedTask
+        writer.WriteNetObject(_Player); //TaskinatorMarkedTask
         writer.Write(taskinatorID);
         writer.Write(taskIndex);
         writer.Write(isKill);
@@ -102,17 +99,15 @@ internal class Taskinator : RoleBase
     }
     public override void ApplyGameOptions(IGameOptions opt, byte playerId)
     {
-        AURoleOptions.EngineerCooldown = 0f;
+        AURoleOptions.EngineerCooldown = 1f;
         AURoleOptions.EngineerInVentMaxTime = 0f;
     }
     public override void OnOthersTaskComplete(PlayerControl player, PlayerTask task)
     {
-        if (!AmongUsClient.Instance.AmHost) return;
-        if(!HasEnabled) return;
-        if (player == null) return;
+        if (player == null || _Player == null) return;
         if (!player.IsAlive()) return;
         byte playerId = player.PlayerId;
-        var Taskinators = playerIdList.GetPlayerListByIds();
+
         if (player.Is(CustomRoles.Taskinator))
         {
             if (!TaskMarkPerRound.ContainsKey(playerId)) TaskMarkPerRound[playerId] = 0;
@@ -128,7 +123,7 @@ internal class Taskinator : RoleBase
             SendRPC(taskinatorID: playerId, taskIndex: task.Index);
             player.Notify(GetString("TaskinatorBombPlanted"));
         }
-        else if (Taskinators.All(Inator => Inator.RpcCheckAndMurder(player, true)))
+        else if (_Player.RpcCheckAndMurder(player, true))
         {
             foreach (var taskinatorId in taskIndex.Keys)
             { 
@@ -138,8 +133,8 @@ internal class Taskinator : RoleBase
                     if (taskinatorPC == null) continue;
 
                     Main.PlayerStates[player.PlayerId].deathReason = PlayerState.DeathReason.Bombed;
-                    player.SetRealKiller(taskinatorPC);
                     player.RpcMurderPlayer(player);
+                    player.SetRealKiller(taskinatorPC);
 
                     taskIndex[taskinatorId].Remove(task.Index);
                     SendRPC(taskinatorID : taskinatorId, taskIndex:task.Index, isKill : true);

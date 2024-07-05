@@ -11,7 +11,7 @@ internal partial class Mayor : RoleBase
     private const int Id = 12000;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => MayorHasPortableButton.GetBool() ? CustomRoles.Engineer : CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmatePower;
     //==================================================================\\
@@ -107,19 +107,16 @@ internal partial class Mayor : RoleBase
 
     public override bool OnRoleGuess(bool isUI, PlayerControl target, PlayerControl guesser, CustomRoles role, ref bool guesserSuicide)
     {
-        if (MayorRevealWhenDoneTasks.GetBool())
+        if (MayorRevealWhenDoneTasks.GetBool() && target.GetPlayerTaskState().IsTaskFinished)
         {
-            if (target.Is(CustomRoles.Mayor) && target.GetPlayerTaskState().IsTaskFinished)
-            {
-                if (!isUI) Utils.SendMessage(GetString("GuessMayor"), guesser.PlayerId);
-                else guesser.ShowPopUp(GetString("GuessMayor"));
-                return true;
-            }
+            if (!isUI) Utils.SendMessage(GetString("GuessMayor"), guesser.PlayerId);
+            else guesser.ShowPopUp(GetString("GuessMayor"));
+            return true;
         }
         return false;
     }
 
-    public static bool VisibleToEveryone(PlayerControl target) => MayorRevealWhenDoneTasks.GetBool() && target.GetPlayerTaskState().IsTaskFinished;
+    public static bool VisibleToEveryone(PlayerControl target) => target.Is(CustomRoles.Mayor) && MayorRevealWhenDoneTasks.GetBool() && target.GetPlayerTaskState().IsTaskFinished;
     public override bool KnowRoleTarget(PlayerControl seer, PlayerControl target) => VisibleToEveryone(target);
     public override bool OthersKnowTargetRoleColor(PlayerControl seer, PlayerControl target) => VisibleToEveryone(target);
     

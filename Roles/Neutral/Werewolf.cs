@@ -11,7 +11,7 @@ internal class Werewolf : RoleBase
     private const int Id = 18400;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralKilling;
     //==================================================================\\
@@ -65,8 +65,8 @@ internal class Werewolf : RoleBase
                 if (Vector2.Distance(killer.transform.position, player.transform.position) <= Werewolf.MaulRadius.GetFloat())
                 {
                     Main.PlayerStates[player.PlayerId].deathReason = PlayerState.DeathReason.Mauled;
-                    player.SetRealKiller(killer);
                     player.RpcMurderPlayer(player);
+                    player.SetRealKiller(killer);
                 }
             }
         }, 0.1f, "Werewolf Maul Bug Fix");

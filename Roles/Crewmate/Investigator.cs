@@ -11,7 +11,7 @@ internal class Investigator : RoleBase
     private const int Id = 24900;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateSupport;
     //==================================================================\\
@@ -150,7 +150,7 @@ internal class Investigator : RoleBase
         if (ExtendedPlayerControl.HasKillButton(target) || CopyCat.playerIdList.Contains(target.PlayerId)) return "#FF1919";
         else return "#8CFFFF";
     }
-    public override void OnReportDeadBody(PlayerControl reporter, PlayerControl target)
+    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
     {
         foreach (var playerid in RoundInvestigateLimit.Keys)
         {

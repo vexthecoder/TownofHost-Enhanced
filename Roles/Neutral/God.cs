@@ -8,9 +8,7 @@ internal class God : RoleBase
     private const int Id = 25100;
     public static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
-    public override bool IsExperimental => true;
-    public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
+    public override CustomRoles ThisRoleBase => CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralChaos;
     //==================================================================\\
 
@@ -19,10 +17,10 @@ internal class God : RoleBase
 
     public override void SetupCustomOption()
     {
-        Options.SetupRoleOptions(Id, TabGroup.OtherRoles, CustomRoles.God);
-        NotifyGodAlive = BooleanOptionItem.Create(Id + 3, "NotifyGodAlive", true, TabGroup.OtherRoles, false)
+        Options.SetupRoleOptions(Id, TabGroup.NeutralRoles, CustomRoles.God);
+        NotifyGodAlive = BooleanOptionItem.Create(Id + 3, "NotifyGodAlive", true, TabGroup.NeutralRoles, false)
             .SetParent(Options.CustomRoleSpawnChances[CustomRoles.God]);
-        CanGuess = BooleanOptionItem.Create(Id + 4, "CanGuess", false, TabGroup.OtherRoles, false)
+        CanGuess = BooleanOptionItem.Create(Id + 4, "CanGuess", false, TabGroup.NeutralRoles, false)
             .SetParent(Options.CustomRoleSpawnChances[CustomRoles.God]);
     }
 
@@ -37,13 +35,12 @@ internal class God : RoleBase
 
     public override bool GuessCheck(bool isUI, PlayerControl guesser, PlayerControl target, CustomRoles role, ref bool guesserSuicide)
     {
-        if (guesser.Is(CustomRoles.God) && !CanGuess.GetBool())
+        if (!CanGuess.GetBool())
         {
             if (!isUI) Utils.SendMessage(Translator.GetString("GuessDisabled"), guesser.PlayerId);
             else guesser.ShowPopUp(Translator.GetString("GuessDisabled"));
             return true;
         }
-
         return false;
     }
 

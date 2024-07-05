@@ -15,7 +15,7 @@ internal class AntiAdminer : RoleBase
     private const int Id = 2800;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.ImpostorSupport;
     //==================================================================\\
@@ -52,7 +52,7 @@ internal class AntiAdminer : RoleBase
     private static int Count = 0;
     public override void OnFixedUpdateLowLoad(PlayerControl player)
     {
-        Count--; if (Count > 0) return; Count = 5;
+        Count--; if (Count > 0) return; Count = 3;
 
         bool Admin = false, Camera = false, DoorLog = false, Vital = false;
         foreach (PlayerControl pc in Main.AllAlivePlayerControls)
@@ -145,7 +145,7 @@ internal class AntiAdminer : RoleBase
     }
     public override string GetSuffix(PlayerControl seer, PlayerControl seen = null, bool isForMeeting = false)
     {
-        if (isForMeeting) return "";
+        if (seer.PlayerId != seen.PlayerId || isForMeeting) return string.Empty;
 
         StringBuilder sb = new();
         if (IsAdminWatch) sb.Append(ColorString(GetRoleColor(CustomRoles.AntiAdminer), "⚠")).Append(ColorString(GetRoleColor(CustomRoles.AntiAdminer), GetString("AdminWarning")));

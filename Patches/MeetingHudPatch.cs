@@ -26,14 +26,18 @@ class CheckForEndVotingPatch
         {
             shouldSkip = true;
         }
-        
+
+        //  HasNotVoted = 255;
+        //  MissedVote = 254;
+        //  SkippedVote = 253;
+        //  DeadVote = 252;
 
         var voteLog = Logger.Handler("Vote");
         try
         {
             List<MeetingHud.VoterState> statesList = [];
             MeetingHud.VoterState[] states;
-            foreach (var pva in __instance.playerStates.ToArray())
+            foreach (var pva in __instance.playerStates)
             {
                 if (pva == null) continue;
                 PlayerControl pc = Utils.GetPlayerById(pva.TargetPlayerId);
@@ -63,9 +67,10 @@ class CheckForEndVotingPatch
                     });
                     states = [.. statesList];
 
+                    ExileControllerWrapUpPatch.AntiBlackout_LastExiled = voteTarget.Data;
+
                     if (AntiBlackout.BlackOutIsActive)
                     {
-                        ExileControllerWrapUpPatch.AntiBlackout_LastExiled = voteTarget.Data;
                         //__instance.RpcVotingComplete(states, null, true);
 
                         // Need check BlackOutIsActive again
@@ -95,16 +100,11 @@ class CheckForEndVotingPatch
                 if (pva.DidVote && pva.VotedFor < 253 && !pc.Data.IsDead)
                 {
                     var voteTarget = Utils.GetPlayerById(pva.VotedFor);
-                    if (voteTarget == null)
+                    
+                    if (voteTarget == null || !voteTarget.IsAlive() || voteTarget.Data.Disconnected)
                     {
                         Utils.SendMessage(GetString("VoteDead"), pc.PlayerId);
-                        __instance.RpcClearVote(pc.GetClientId());
-                        Swapper.CheckSwapperTarget(pva.VotedFor);
-                        continue;
-                    }
-                    else if (!voteTarget.IsAlive() || voteTarget.Data.Disconnected)
-                    {
-                        Utils.SendMessage(GetString("VoteDead"), pc.PlayerId);
+                        __instance.UpdateButtons();
                         __instance.RpcClearVote(pc.GetClientId());
                         Swapper.CheckSwapperTarget(pva.VotedFor);
                         continue;
@@ -112,7 +112,6 @@ class CheckForEndVotingPatch
 
                     if (voteTarget != null)
                     {
-
                         pc.GetRoleClass()?.OnVote(pc, voteTarget); // Role has voted
                         voteTarget.GetRoleClass()?.OnVoted(voteTarget, pc); // Role is voted
 
@@ -126,7 +125,7 @@ class CheckForEndVotingPatch
 
             if (!shouldSkip)
             {
-                foreach (var ps in __instance.playerStates.ToArray())
+                foreach (var ps in __instance.playerStates)
                 {
                     //Players who are not dead have not voted
                     if (!ps.DidVote && Utils.GetPlayerById(ps.TargetPlayerId)?.IsAlive() == true)
@@ -139,7 +138,7 @@ class CheckForEndVotingPatch
             GameData.PlayerInfo exiledPlayer = PlayerControl.LocalPlayer.Data;
             bool tie = false;
 
-            foreach (var ps in __instance.playerStates.ToArray())
+            foreach (var ps in __instance.playerStates)
             {
                 if (ps == null) continue;
                 voteLog.Info(string.Format("{0,-2}{1}:{2,-3}{3}", ps.TargetPlayerId, Utils.PadRightV2($"({Utils.GetVoteName(ps.TargetPlayerId)})", 40), ps.VotedFor, $"({Utils.GetVoteName(ps.VotedFor)})"));
@@ -205,7 +204,7 @@ class CheckForEndVotingPatch
                 });
 
                 // Swapper swap votes
-                Swapper.SwapVotes(__instance);
+                 if(voter.GetRoleClass() is Swapper sw) sw.SwapVotes(__instance);
 
                 playerRoleClass?.AddVisualVotes(ps, ref statesList);
             }
@@ -290,8 +289,8 @@ class CheckForEndVotingPatch
                     braked = true;
                 }
             }
-
-            Collector.CollectAmount(VotingData, __instance);
+            List<Collector> CollectorCL = Utils.GetRoleBasesByType<Collector>()?.ToList();
+            if (Collector.HasEnabled) CollectorCL?.Do(x => { x.CollectAmount(VotingData, __instance); });
 
             if (Options.VoteMode.GetBool() && Options.WhenTie.GetBool() && tie)
             {
@@ -324,10 +323,11 @@ class CheckForEndVotingPatch
 
             exiledPlayer?.Object.SetRealKiller(null);
 
+            ExileControllerWrapUpPatch.AntiBlackout_LastExiled = exiledPlayer;
+
             //RPC
             if (AntiBlackout.BlackOutIsActive)
             {
-                ExileControllerWrapUpPatch.AntiBlackout_LastExiled = exiledPlayer;
                 //__instance.RpcVotingComplete(states, null, true);
 
                 // Need check BlackOutIsActive again
@@ -439,7 +439,9 @@ class CheckForEndVotingPatch
         }
         var DecidedWinner = false;
 
-        player.GetRoleClass()?.CheckExileTarget(exiledPlayer, ref DecidedWinner, isMeetingHud: true, name: ref name);
+        player.GetRoleClass()?.CheckExile(exiledPlayer, ref DecidedWinner, isMeetingHud: true, name: ref name);
+
+        CustomRoleManager.AllEnabledRoles.Do(roleClass => roleClass.CheckExileTarget(exiledPlayer, ref DecidedWinner, isMeetingHud: true, name: ref name));
 
         if (DecidedWinner) name += "<size=0>";
         if (Options.ShowImpRemainOnEject.GetBool() && !DecidedWinner)
@@ -464,27 +466,41 @@ class CheckForEndVotingPatch
 
         _ = new LateTask(() =>
         {
-            Main.DoBlockNameChange = true;
-            if (GameStates.IsInGame)
+            try
             {
-                GameData.Instance.UpdateName(exiledPlayer.PlayerId, name, false);
-                player.RpcSetName(name);
+                Main.DoBlockNameChange = true;
+                if (GameStates.IsInGame)
+                {
+                    GameData.Instance.UpdateName(exiledPlayer.PlayerId, name, false);
+                    player?.RpcSetName(name);
+                }
+            }
+            catch (Exception error)
+            {
+                Logger.Error($"Error after change exiled player name: {error}", "ConfirmEjections");
             }
         }, 3.0f, "Change Exiled Player Name");
 
         _ = new LateTask(() =>
         {
-            if (GameStates.IsInGame && !player.Data.Disconnected)
+            try
             {
-                player.RpcSetName(realName);
-                Main.DoBlockNameChange = false;
-            }
+                if (GameStates.IsInGame && !player.Data.Disconnected)
+                {
+                    player?.RpcSetName(realName);
+                    Main.DoBlockNameChange = false;
+                }
 
-            if (GameStates.IsInGame && player.Data.Disconnected)
+                if (GameStates.IsInGame && player.Data.Disconnected)
+                {
+                    player.Data.PlayerName = realName;
+                    GameData.Instance.UpdateName(exiledPlayer.PlayerId, realName, false);
+                    //Await Next Send Data or Next Meeting
+                }
+            }
+            catch (Exception error)
             {
-                player.Data.PlayerName = realName;
-                GameData.Instance.UpdateName(exiledPlayer.PlayerId, realName, false);
-                //Await Next Send Data or Next Meeting
+                Logger.Error($"Error after change exiled player name back: {error}", "ConfirmEjections");
             }
         }, 11.5f, "Change Exiled Player Name Back");
 
@@ -577,7 +593,7 @@ class CheckForEndVotingPatch
         }
         if (TargetList == null || TargetList.Count == 0) return null;
         var rand = IRandom.Instance;
-        var target = TargetList[rand.Next(TargetList.Count)];
+        var target = TargetList.RandomElement();
         return target;
     }
 }
@@ -651,11 +667,14 @@ static class ExtendedMeetingHud
         Logger.Info("===Start of vote counting processing===", "Vote");
         
         Dictionary<byte, int> dic = [];
+
         Collector.Clear();
+
+
         Tiebreaker.Clear();
 
         // |Voted By| Number of Times Voted For
-        foreach (var ps in __instance.playerStates.ToArray())
+        foreach (var ps in __instance.playerStates)
         {
             if (ps == null) continue;
 
@@ -692,9 +711,9 @@ static class ExtendedMeetingHud
                     && ps.TargetPlayerId != ps.VotedFor
                     ) VoteNum += 1;
 
-                if (Schizophrenic.DualVotes.GetBool())
+                if (Paranoia.DualVotes.GetBool())
                 {
-                    if (CheckForEndVotingPatch.CheckRole(ps.TargetPlayerId, CustomRoles.Schizophrenic)
+                    if (CheckForEndVotingPatch.CheckRole(ps.TargetPlayerId, CustomRoles.Paranoia)
                         && ps.TargetPlayerId != ps.VotedFor
                         ) VoteNum += VoteNum;
                 }
@@ -762,9 +781,7 @@ class MeetingHudStartPatch
 
                 foreach (var subRole in Main.PlayerStates[pc.PlayerId].SubRoles.ToArray())
                     Sub.Append($"\n\n" + $"<size={ChatCommands.Asize}>" + Utils.GetRoleTitle(subRole) + Utils.GetInfoLong(subRole) + "</size>");
-                if (CustomRolesHelper.RoleExist(CustomRoles.Ntr) && (role is not CustomRoles.GM and not CustomRoles.Ntr))
-                    Sub.Append($"\n\n" + $"<size={ChatCommands.Asize}>" + Utils.GetRoleTitle(CustomRoles.Lovers) + Utils.GetInfoLong(CustomRoles.Lovers) + "</size>");
-
+                
                 if (Sub.ToString() != string.Empty)
                 {
                     var ACleared = Sub.ToString().Remove(0, 2);
@@ -878,7 +895,7 @@ class MeetingHudStartPatch
         GuessManager.textTemplate = UnityEngine.Object.Instantiate(__instance.playerStates[0].NameText);
         GuessManager.textTemplate.enabled = false;
 
-        foreach (var pva in __instance.playerStates.ToArray())
+        foreach (var pva in __instance.playerStates)
         {
             var pc = Utils.GetPlayerById(pva.TargetPlayerId);
             if (pc == null) continue;
@@ -886,7 +903,7 @@ class MeetingHudStartPatch
             var roleTextMeeting = UnityEngine.Object.Instantiate(pva.NameText);
             roleTextMeeting.transform.SetParent(pva.NameText.transform);
             roleTextMeeting.transform.localPosition = new Vector3(0f, -0.18f, 0f);
-            roleTextMeeting.fontSize = 1.5f;
+            roleTextMeeting.fontSize = 1.6f;
             roleTextMeeting.text = RoleTextData.Item1;
             if (Main.VisibleTasksCount) roleTextMeeting.text += Utils.GetProgressText(pc);
             roleTextMeeting.color = RoleTextData.Item2;
@@ -910,6 +927,17 @@ class MeetingHudStartPatch
                 suffixBuilder.Append(myRole.GetSuffix(PlayerControl.LocalPlayer, pc, isForMeeting: true));
             }
             suffixBuilder.Append(CustomRoleManager.GetSuffixOthers(PlayerControl.LocalPlayer, pc, isForMeeting: true));
+
+            // If Doppelganger.CurrentVictimCanSeeRolesAsDead is disabled and player is the most recent victim from the doppelganger hide role information for player.
+            var player = PlayerControl.LocalPlayer;
+            var target = Utils.GetPlayerById(pva.TargetPlayerId);
+            if (target != null && player != null)
+            {
+                if (player.Data.IsDead && player != target && !target.Data.IsDead && !target.Is(CustomRoles.Doppelganger) && !Doppelganger.CurrentVictimCanSeeRolesAsDead.GetBool() && Doppelganger.CurrentIdToSwap == player.PlayerId)
+                {
+                    roleTextMeeting.text = string.Empty;
+                }
+            }
             
             if (suffixBuilder.Length > 0)
             {
@@ -975,7 +1003,7 @@ class MeetingHudStartPatch
             }, 3f, "SetName To Chat");
         }
 
-        foreach (var pva in __instance.playerStates.ToArray())
+        foreach (var pva in __instance.playerStates)
         {
             if (pva == null) continue;
             PlayerControl seer = PlayerControl.LocalPlayer;
@@ -987,7 +1015,15 @@ class MeetingHudStartPatch
             var sb = new StringBuilder();
 
             pva.NameText.text = pva.NameText.text.ApplyNameColorData(seer, target, true);
-
+            
+            // if Victim to Doppelganger or is Doppelganger
+            if (seer.Data.IsDead && Doppelganger.HasEnabled && Doppelganger.DoppelVictim.Count > 1)
+            {
+                if (target.Is(CustomRoles.Doppelganger) && Doppelganger.TrueNames.ContainsKey(target.PlayerId))
+                    pva.NameText.text = $"{Utils.ColorString(Color.gray, $"<size=75%>({Doppelganger.TrueNames[target.PlayerId]})</size>")}\r\n{pva.NameText.text.ApplyNameColorData(seer, target, true)}\n\n";
+                else if (Doppelganger.CheckDoppelVictim(target.PlayerId) && Doppelganger.TrueNames.ContainsKey(target.PlayerId))
+                    pva.NameText.text = Doppelganger.TrueNames[target.PlayerId].ApplyNameColorData(seer, target, true);
+            }
 
             // Guesser Mode //
             if (Options.GuesserMode.GetBool())
@@ -995,7 +1031,7 @@ class MeetingHudStartPatch
                 if (Options.CrewmatesCanGuess.GetBool() && seer.GetCustomRole().IsCrewmate() && !seer.Is(CustomRoles.Judge) && !seer.Is(CustomRoles.Lookout) && !seer.Is(CustomRoles.Swapper) && !seer.Is(CustomRoles.Inspector))
                     if (!seer.Data.IsDead && !target.Data.IsDead)
                         pva.NameText.text = Utils.ColorString(Utils.GetRoleColor(seer.GetCustomRole()), target.PlayerId.ToString()) + " " + pva.NameText.text;
-                if (Options.ImpostorsCanGuess.GetBool() && seer.GetCustomRole().IsImpostor() && !seer.Is(CustomRoles.Councillor))
+                if (Options.ImpostorsCanGuess.GetBool() && (seer.GetCustomRole().IsImpostor() || seer.GetCustomRole().IsMadmate()) && !seer.Is(CustomRoles.Councillor))
                     if (!seer.Data.IsDead && !target.Data.IsDead)
                         pva.NameText.text = Utils.ColorString(Utils.GetRoleColor(seer.GetCustomRole()), target.PlayerId.ToString()) + " " + pva.NameText.text;
                 if (Options.NeutralKillersCanGuess.GetBool() && seer.GetCustomRole().IsNK())
@@ -1036,7 +1072,7 @@ class MeetingHudStartPatch
                 }
             }
 
-            bool isLover = false;
+            //bool isLover = false;
             foreach (var TargetSubRole in target.GetCustomSubRoles().ToArray())
             {
                 switch (TargetSubRole)
@@ -1045,20 +1081,22 @@ class MeetingHudStartPatch
                         if (seer.Is(CustomRoles.Lovers) || seer.Data.IsDead)
                         {
                             sb.Append(Utils.ColorString(Utils.GetRoleColor(CustomRoles.Lovers), "♥"));
-                            isLover = true;
+                            //isLover = true;
                         }
+                        break;
+                    case CustomRoles.Cyber when Cyber.CyberKnown.GetBool():
+                        sb.Append(Utils.ColorString(Utils.GetRoleColor(CustomRoles.Cyber), "★"));
                         break;
                 }
             }
             //add checks for both seer and target's subrole, maybe one day we can use them...
 
-            if ((seer.Is(CustomRoles.Ntr) || target.Is(CustomRoles.Ntr)) && !seer.Data.IsDead && !isLover)
-                sb.Append(Utils.ColorString(Utils.GetRoleColor(CustomRoles.Lovers), "♥"));
-            else if (seer == target && CustomRoles.Ntr.RoleExist() && !isLover)
-                sb.Append(Utils.ColorString(Utils.GetRoleColor(CustomRoles.Lovers), "♥"));
-
-            if (target.Is(CustomRoles.Cyber) && Cyber.CyberKnown.GetBool())
-                sb.Append(Utils.ColorString(Utils.GetRoleColor(CustomRoles.Cyber), "★"));
+            // If Doppelganger.CurrentVictimCanSeeRolesAsDead is disabled and player is the most recent victim from the doppelganger hide role information for player.
+            if (seer.Data.IsDead && seer != target && !target.Data.IsDead && !target.Is(CustomRoles.Doppelganger) && !Doppelganger.CurrentVictimCanSeeRolesAsDead.GetBool() && Doppelganger.CurrentIdToSwap == seer.PlayerId)
+            {
+                pva.NameText.text = target.GetRealName();
+                sb.Clear();
+            }
 
             pva.NameText.text += sb.ToString();
             pva.ColorBlindName.transform.localPosition -= new Vector3(1.35f, 0f, 0f);

@@ -16,7 +16,7 @@ internal class Alchemist : RoleBase
     private const int Id = 6400;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Engineer;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateBasic;
     //==================================================================\\
@@ -31,7 +31,7 @@ internal class Alchemist : RoleBase
 
     private static Dictionary<byte, long> InvisTime = [];
     private static readonly Dictionary<byte, int> ventedId = [];
-    public static readonly Dictionary<byte, byte> BloodlustList = [];
+    public static readonly Dictionary<byte, byte> BloodthirstList = [];
 
     private static byte PotionID = 10;
     private static string PlayerName = string.Empty;
@@ -62,7 +62,7 @@ internal class Alchemist : RoleBase
     public override void Init()
     {
         playerIdList.Clear();
-        BloodlustList.Clear();
+        BloodthirstList.Clear();
         PotionID = 10;
         PlayerName = string.Empty;
         ventedId.Clear();
@@ -77,8 +77,15 @@ internal class Alchemist : RoleBase
 
         if (AmongUsClient.Instance.AmHost)
         {
-            CustomRoleManager.OnFixedUpdateLowLoadOthers.Add(OnFixedUpdatesBloodlus);
             CustomRoleManager.OnFixedUpdateLowLoadOthers.Add(OnFixedUpdateInvis);
+            AddBloodlus();
+        }
+    }
+    public static void AddBloodlus()
+    {
+        if (AmongUsClient.Instance.AmHost)
+        {
+            CustomRoleManager.OnFixedUpdateLowLoadOthers.Add(OnFixedUpdatesBloodlus);
         }
     }
 
@@ -121,8 +128,8 @@ internal class Alchemist : RoleBase
                 PotionID = 10;
                 player.Notify(GetString("AlchemistGotQFPotion"), 15f);
                 break;
-            case 6: // Bloodlust
-                player.Notify(GetString("AlchemistGotBloodlustPotion"), 15f);
+            case 6: // Bloodthirst
+                player.Notify(GetString("AlchemistGotBloodthirstPotion"), 15f);
                 break;
             case 7: // Increased vision
                 player.Notify(GetString("AlchemistGotSightPotion"), 15f);
@@ -151,7 +158,7 @@ internal class Alchemist : RoleBase
         if (invis > 0) InvisTime.Add(PlayerControl.LocalPlayer.PlayerId, invis);
     }
     private static bool IsInvis(byte playerId) => InvisTime.ContainsKey(playerId);
-    private static bool IsBloodlust(byte playerId) => BloodlustList.ContainsKey(playerId);
+    private static bool IsBloodthirst(byte playerId) => BloodthirstList.ContainsKey(playerId);
 
     public override bool OnCheckMurderAsTarget(PlayerControl killer, PlayerControl target)
     {
@@ -161,24 +168,24 @@ internal class Alchemist : RoleBase
         return false;
     }
 
-    private void OnFixedUpdatesBloodlus(PlayerControl player)
+    private static void OnFixedUpdatesBloodlus(PlayerControl player)
     {
-        if (!IsBloodlust(player.PlayerId)) return;
+        if (!IsBloodthirst(player.PlayerId)) return;
 
         if (!player.IsAlive() || Pelican.IsEaten(player.PlayerId))
         {
-            BloodlustList.Remove(player.PlayerId);
+            BloodthirstList.Remove(player.PlayerId);
         }
         else
         {
-            Vector2 bloodlustPos = player.transform.position;
+            Vector2 bloodthirstPos = player.transform.position;
             Dictionary<byte, float> targetDistance = [];
             float dis;
             foreach (var target in Main.AllAlivePlayerControls)
             {
                 if (target.PlayerId != player.PlayerId && !target.Is(CustomRoles.Pestilence))
                 {
-                    dis = Vector2.Distance(bloodlustPos, target.transform.position);
+                    dis = Vector2.Distance(bloodthirstPos, target.transform.position);
                     targetDistance.Add(target.PlayerId, dis);
                 }
             }
@@ -191,14 +198,14 @@ internal class Alchemist : RoleBase
                 {
                     if (player.RpcCheckAndMurder(target, true))
                     {
-                        var bloodlustId = BloodlustList[player.PlayerId];
-                        RPC.PlaySoundRPC(bloodlustId, Sounds.KillSound);
-                        target.SetRealKiller(Utils.GetPlayerById(bloodlustId));
+                        var bloodthirstId = BloodthirstList[player.PlayerId];
+                        RPC.PlaySoundRPC(bloodthirstId, Sounds.KillSound);
                         player.RpcMurderPlayer(target);
+                        target.SetRealKiller(Utils.GetPlayerById(bloodthirstId));
                         player.MarkDirtySettings();
                         target.MarkDirtySettings();
-                        BloodlustList.Remove(player.PlayerId);
-                        Utils.NotifyRoles(SpecifySeer: Utils.GetPlayerById(bloodlustId), SpecifyTarget: player, ForceLoop: true);
+                        BloodthirstList.Remove(player.PlayerId);
+                        Utils.NotifyRoles(SpecifySeer: Utils.GetPlayerById(bloodthirstId), SpecifyTarget: player, ForceLoop: true);
                     }
                 }
             }
@@ -244,7 +251,7 @@ internal class Alchemist : RoleBase
     public static void OnReportDeadBodyGlobal()
     {
         lastFixedTime = new();
-        BloodlustList.Clear();
+        BloodthirstList.Clear();
 
         if (InvisTime.Any())
         {
@@ -293,9 +300,8 @@ internal class Alchemist : RoleBase
             case 3: // TP to random player
                 _ = new LateTask(() =>
                 {
-                    var rd = IRandom.Instance;
                     List<PlayerControl> AllAlivePlayer = [.. Main.AllAlivePlayerControls.Where(x => x.CanBeTeleported() && x.PlayerId != player.PlayerId).ToArray()];
-                    var target = AllAlivePlayer[rd.Next(0, AllAlivePlayer.Count)];
+                    var target = AllAlivePlayer.RandomElement();
                     player.RpcTeleport(target.GetCustomPosition());
                     player.RPCPlayCustomSound("Teleport");
                 }, 2f, "Alchemist teleported to random player");
@@ -316,11 +322,11 @@ internal class Alchemist : RoleBase
             case 5: // Quick fix next sabo
                 // Done when making the potion
                 break;
-            case 6: // Bloodlust
-                player.Notify(GetString("AlchemistPotionBloodlust"));
-                if (!IsBloodlust(player.PlayerId))
+            case 6: // Bloodthirst
+                player.Notify(GetString("AlchemistPotionBloodthirst"));
+                if (!IsBloodthirst(player.PlayerId))
                 {
-                    BloodlustList.TryAdd(player.PlayerId, player.PlayerId);
+                    BloodthirstList.TryAdd(player.PlayerId, player.PlayerId);
                 }
                 break;
             case 7: // Increased vision
@@ -401,7 +407,7 @@ internal class Alchemist : RoleBase
                 case 5: // Quick fix next sabo
                     str.Append(GetString("PotionStore") + GetString("StoreQF"));
                     break;
-                case 6: // Bloodlust
+                case 6: // Bloodthirst
                     str.Append(GetString("PotionStore") + GetString("StoreBL"));
                     break;
                 case 7: // Increased vision
@@ -443,7 +449,7 @@ internal class Alchemist : RoleBase
             case 5: // Quick fix next sabo
                 str.Append("<color=#3333ff>★</color>");
                 break;
-            case 6: // Bloodlust
+            case 6: // Bloodthirst
                 str.Append("<color=#691a2e>乂</color>");
                 break;
             case 7: // Increased vision

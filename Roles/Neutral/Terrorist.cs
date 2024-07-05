@@ -10,7 +10,7 @@ internal class Terrorist : RoleBase
     private const int id = 15400;
     private static readonly HashSet<byte> PlayerIds = [];
     public static bool HasEnabled = PlayerIds.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Engineer;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralChaos;
     //==================================================================\\
@@ -40,7 +40,7 @@ internal class Terrorist : RoleBase
 
     public override void ApplyGameOptions(IGameOptions opt, byte playerId)
     {
-        AURoleOptions.EngineerCooldown = 0f;
+        AURoleOptions.EngineerCooldown = 1f;
         AURoleOptions.EngineerInVentMaxTime = 0f;
     }
     public override void OnMurderPlayerAsTarget(PlayerControl killer, PlayerControl target, bool inMeeting, bool isSuicide)
@@ -48,7 +48,7 @@ internal class Terrorist : RoleBase
         Logger.Info(target?.Data?.PlayerName + " was Terrorist", "AfterPlayerDeathTasks");
         CheckTerroristWin(target.Data);
     }
-    public override void CheckExileTarget(GameData.PlayerInfo exiled, ref bool DecidedWinner, bool isMeetingHud, ref string name)
+    public override void CheckExile(GameData.PlayerInfo exiled, ref bool DecidedWinner, bool isMeetingHud, ref string name)
     {
         CheckTerroristWin(exiled);
     }
@@ -72,10 +72,10 @@ internal class Terrorist : RoleBase
                 }
                 else if (!pc.Data.IsDead)
                 {
-                    pc.SetRealKiller(terrorist.Object);
                     Main.PlayerStates[pc.PlayerId].deathReason = PlayerState.DeathReason.Bombed;
                     Main.PlayerStates[pc.PlayerId].SetDead();
                     pc.RpcMurderPlayer(pc);
+                    pc.SetRealKiller(terrorist.Object);
                 }
             }
             if (!CustomWinnerHolder.CheckForConvertedWinner(terrorist.PlayerId))
@@ -85,14 +85,14 @@ internal class Terrorist : RoleBase
             }
         }
     }
-    public override bool OnRoleGuess(bool isUI, PlayerControl target, PlayerControl pc, CustomRoles role, ref bool guesserSuicide)
+    public override bool GuessCheck(bool isUI, PlayerControl guesser, PlayerControl pc, CustomRoles role, ref bool guesserSuicide)
     {
-        if (TerroristCanGuess.GetBool()) return true;
-        else
+        if (!TerroristCanGuess.GetBool())
         {
             if (!isUI) Utils.SendMessage(GetString("GuessDisabled"), pc.PlayerId);
             else pc.ShowPopUp(GetString("GuessDisabled"));
             return true;
         }
+        return false;
     }
 }

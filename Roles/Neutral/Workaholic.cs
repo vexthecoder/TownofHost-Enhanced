@@ -12,7 +12,7 @@ internal class Workaholic : RoleBase
     private const int Id = 15800;
     private static readonly HashSet<byte> PlayerIds = [];
     public static bool HasEnabled => PlayerIds.Any();
-    public override bool IsEnable => HasEnabled;
+    
     public override CustomRoles ThisRoleBase => CustomRoles.Engineer;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralChaos;
     //==================================================================\\
@@ -63,7 +63,7 @@ internal class Workaholic : RoleBase
     public override bool OnTaskComplete(PlayerControl player, int completedTaskCount, int totalTaskCount)
     {
         var AllTasksCount = player.Data.Tasks.Count;
-        if (!((completedTaskCount + 1) >= AllTasksCount && !(WorkaholicCannotWinAtDeath.GetBool() && !player.IsAlive()))) return true;
+        if (!((completedTaskCount) >= AllTasksCount && !(WorkaholicCannotWinAtDeath.GetBool() && !player.IsAlive()))) return true;
 
         Logger.Info("The Workaholic task is done", "Workaholic");
 
@@ -121,8 +121,8 @@ internal class Workaholic : RoleBase
         {
             if (!isUI) Utils.SendMessage(GetString("GuessDisabled"), pc.PlayerId);
             else pc.ShowPopUp(GetString("GuessDisabled"));
-            return false;
+            return true;
         }
-        return true;
+        return false;
     }
 }

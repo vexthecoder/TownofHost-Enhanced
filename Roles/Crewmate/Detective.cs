@@ -1,4 +1,6 @@
-﻿using static TOHE.Options;
+﻿using System.Text;
+using TOHE.Roles.Core;
+using static TOHE.Options;
 using static TOHE.MeetingHudStartPatch;
 using static TOHE.Translator;
 
@@ -10,7 +12,7 @@ internal class Detective : RoleBase
     private const int Id = 7900;
     private static readonly HashSet<byte> playerIdList = [];
     public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+
     public override CustomRoles ThisRoleBase => CustomRoles.Crewmate;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.CrewmateSupport;
     //==================================================================\\
@@ -18,6 +20,7 @@ internal class Detective : RoleBase
     private static OptionItem DetectiveCanknowKiller;
 
     private static readonly Dictionary<byte, string> DetectiveNotify = [];
+    private static readonly Dictionary<byte, string> InfoAboutDeadPlayerAndKiller = [];
 
     public override void SetupCustomOption()
     {
@@ -30,27 +33,49 @@ internal class Detective : RoleBase
     {
         playerIdList.Clear();
         DetectiveNotify.Clear();
+        InfoAboutDeadPlayerAndKiller.Clear();
     }
 
     public override void Add(byte playerId)
     {
         playerIdList.Add(playerId);
+        CustomRoleManager.CheckDeadBodyOthers.Add(GetInfoFromDeadBody);
     }
-    public override void OnReportDeadBody(PlayerControl player, PlayerControl target)
+    public override void Remove(byte playerId)
     {
-        var tpc = target;
-        if (player.Is(CustomRoles.Detective) && player.PlayerId != target.PlayerId)
+        playerIdList.Remove(playerId);
+        CustomRoleManager.CheckDeadBodyOthers.Remove(GetInfoFromDeadBody);
+    }
+    private void GetInfoFromDeadBody(PlayerControl killer, PlayerControl target, bool inMeeting)
+    {
+        if ((target.IsDisconnected() && killer.PlayerId == target.PlayerId) || inMeeting) return;
+
+        InfoAboutDeadPlayerAndKiller[killer.PlayerId] = killer.GetDisplayRoleAndSubName(killer, false);
+        InfoAboutDeadPlayerAndKiller[target.PlayerId] = target.GetDisplayRoleAndSubName(target, false);
+    }
+    public override void OnReportDeadBody(PlayerControl player, GameData.PlayerInfo deadBody)
+    {
+        if (deadBody == null || deadBody.Object.IsAlive()) return;
+
+        if (player != null && player.Is(CustomRoles.Detective) && player.PlayerId != deadBody.PlayerId)
         {
-            string msg;
-            msg = string.Format(GetString("DetectiveNoticeVictim"), tpc.GetRealName(), tpc.GetDisplayRoleAndSubName(tpc, false));
+            var msg = new StringBuilder();
+            _ = InfoAboutDeadPlayerAndKiller.TryGetValue(deadBody.PlayerId, out var RoleDeadBodyInfo);
+            msg.Append(string.Format(GetString("DetectiveNoticeVictim"), deadBody.PlayerName, RoleDeadBodyInfo));
+
             if (DetectiveCanknowKiller.GetBool())
             {
-                var realKiller = tpc.GetRealKiller();
-                if (realKiller == null) msg += "；" + GetString("DetectiveNoticeKillerNotFound");
-                else msg += "；" + string.Format(GetString("DetectiveNoticeKiller"), realKiller.GetDisplayRoleAndSubName(realKiller, false));
+                var realKiller = deadBody.PlayerId.GetRealKillerById();
+                if (realKiller == null) msg.Append($"；\n{GetString("DetectiveNoticeKillerNotFound")}");
+                else
+                {
+                    _ = InfoAboutDeadPlayerAndKiller.TryGetValue(realKiller.Data.PlayerId, out var RoleKillerInfo);
+                    msg.Append($"；\n{string.Format(GetString("DetectiveNoticeKiller"), RoleKillerInfo)}");
+                }
             }
-            DetectiveNotify.Add(player.PlayerId, msg);
+            DetectiveNotify.Add(player.PlayerId, msg.ToString());
         }
+        InfoAboutDeadPlayerAndKiller.Clear();
     }
 
     public override void OnMeetingHudStart(PlayerControl pc)
@@ -58,5 +83,9 @@ internal class Detective : RoleBase
         if (DetectiveNotify.ContainsKey(pc.PlayerId))
             AddMsg(DetectiveNotify[pc.PlayerId], pc.PlayerId, Utils.ColorString(Utils.GetRoleColor(CustomRoles.Detective), GetString("DetectiveNoticeTitle")));
     }
-    public override void MeetingHudClear() => DetectiveNotify.Clear();
+    public override void MeetingHudClear()
+    {
+        DetectiveNotify.Clear();
+        InfoAboutDeadPlayerAndKiller.Clear();
+    }
 }

@@ -1,4 +1,5 @@
 ﻿using AmongUs.Data;
+using System;
 using TOHE.Roles.Core;
 using TOHE.Roles.Neutral;
 
@@ -16,6 +17,10 @@ class ExileControllerWrapUpPatch
             {
                 WrapUpPostfix(__instance.exiled);
             }
+            catch (Exception error)
+            {
+                Logger.Error($"Error after exiled: {error}", "WrapUpPostfix");
+            }
             finally
             {
                 WrapUpFinalizer(__instance.exiled);
@@ -31,6 +36,10 @@ class ExileControllerWrapUpPatch
             try
             {
                 WrapUpPostfix(__instance.exiled);
+            }
+            catch (Exception error)
+            {
+                Logger.Error($"Error after exiled: {error}", "WrapUpAndSpawn");
             }
             finally
             {
@@ -54,11 +63,14 @@ class ExileControllerWrapUpPatch
         bool DecidedWinner = false;
         if (!AmongUsClient.Instance.AmHost) return;
         AntiBlackout.RestoreIsDead(doSend: false);
-        
-        Logger.Info($"{!Collector.CollectorWin(false)}", "!Collector.CollectorWin(false)");
-        Logger.Info($"{exiled != null}", "exiled != null");
 
-        if (!Collector.CollectorWin(false) && exiled != null)
+        List<Collector> collectorCL = Utils.GetRoleBasesByType<Collector>()?.ToList();
+
+        if (collectorCL != null) Logger.Info($"{!collectorCL.Any(x => x.CollectorWin(false))}", "!Collector.CollectorWin(false)");
+        Logger.Info($"{exiled != null}", "exiled != null");
+        bool CLThingy = collectorCL == null || !collectorCL.Any(x => x.CollectorWin(false));
+
+        if (CLThingy && exiled != null)
         {
             // Reset player cam for exiled desync impostor
             if (Main.ResetCamPlayerList.Contains(exiled.PlayerId))
@@ -69,12 +81,14 @@ class ExileControllerWrapUpPatch
             exiled.IsDead = true;
             Main.PlayerStates[exiled.PlayerId].deathReason = PlayerState.DeathReason.Vote;
 
-            var role = exiled.GetCustomRole();
-            var player = Utils.GetPlayerById(exiled.PlayerId);
-            var exiledRoleClass = player.GetRoleClass();
+            var exiledPC = Utils.GetPlayerById(exiled.PlayerId);
+            var exiledRoleClass = exiledPC.GetRoleClass();
            
             var emptyString = string.Empty;
-            exiledRoleClass?.CheckExileTarget(exiled, ref DecidedWinner, isMeetingHud: false, name: ref emptyString);
+
+            exiledRoleClass?.CheckExile(exiled, ref DecidedWinner, isMeetingHud: false, name: ref emptyString);
+
+            CustomRoleManager.AllEnabledRoles.Do(roleClass => roleClass.CheckExileTarget(exiled, ref DecidedWinner, isMeetingHud: false, name: ref emptyString));
 
             if (CustomWinnerHolder.WinnerTeam != CustomWinner.Terrorist) Main.PlayerStates[exiled.PlayerId].SetDead();
         }

@@ -1,4 +1,5 @@
 ﻿using Hazel;
+using InnerNet;
 using System;
 using System.Text.RegularExpressions;
 using TOHE.Modules.ChatManager;
@@ -7,14 +8,13 @@ using UnityEngine;
 using static TOHE.Translator;
 using static TOHE.Utils;
 
+
 namespace TOHE.Roles.Neutral;
 internal class Pirate : RoleBase
 {
     //===========================SETUP================================\\
     private const int Id = 15000;
-    private static readonly HashSet<byte> playerIdList = [];
-    public static bool HasEnabled => playerIdList.Any();
-    public override bool IsEnable => HasEnabled;
+    public static bool HasEnabled => CustomRoleManager.HasEnabled(CustomRoles.Pirate);
     public override CustomRoles ThisRoleBase => CustomRoles.Impostor;
     public override Custom_RoleType ThisRoleType => Custom_RoleType.NeutralChaos;
     //==================================================================\\
@@ -42,7 +42,6 @@ internal class Pirate : RoleBase
 
     public override void Init()
     {
-        playerIdList.Clear();
         PirateTarget = byte.MaxValue;
         DuelDone.Clear();
         pirateChose = -1;
@@ -51,9 +50,7 @@ internal class Pirate : RoleBase
     }
     public override void Add(byte playerId)
     {
-        playerIdList.Add(playerId);
         DuelDone.Add(playerId, false);
-        CustomRoleManager.MarkOthers.Add(GetPlunderedMark);
 
         if (!AmongUsClient.Instance.AmHost) return;
         if (!Main.ResetCamPlayerList.Contains(playerId))
@@ -63,7 +60,7 @@ internal class Pirate : RoleBase
     {
         if (!HasEnabled || PirateTarget == byte.MaxValue) return;
 
-        var pc = Utils.GetPlayerById(playerIdList.ToArray().FirstOrDefault());
+        var pc = _Player;
         var tpc = Utils.GetPlayerById(PirateTarget);
         if (!tpc.IsAlive()) return;
         _ = new LateTask(() =>
@@ -77,10 +74,10 @@ internal class Pirate : RoleBase
     public override string GetProgressText(byte playerId, bool comms)
             => ColorString(GetRoleColor(CustomRoles.Pirate).ShadeColor(0.25f), $"({Pirate.NumWin}/{Pirate.SuccessfulDuelsToWin.GetInt()})");
     
-    public static void SendRPC(int operate, byte target = byte.MaxValue, int points = -1)
+    public void SendRPC(int operate, byte target = byte.MaxValue, int points = -1)
     {
         MessageWriter writer = AmongUsClient.Instance.StartRpcImmediately(PlayerControl.LocalPlayer.NetId, (byte)CustomRPC.SyncRoleSkill, SendOption.Reliable, -1);
-        writer.WritePacked((int)CustomRoles.Pirate);
+        writer.WriteNetObject(_Player);
         writer.Write(operate);
         writer.Write(target);
         if (operate == 1)
@@ -123,7 +120,8 @@ internal class Pirate : RoleBase
         hud.KillButton.OverrideText(GetString("PirateDuelButtonText"));
     }
     public override Sprite GetKillButtonSprite(PlayerControl player, bool shapeshifting) => CustomButton.Get("Challenge");
-    private static string GetPlunderedMark(PlayerControl seer, PlayerControl target, bool isMeeting = false)
+
+    public override string GetMarkOthers(PlayerControl seer, PlayerControl target, bool isMeeting = false)
     {
         if (target != null && isMeeting && target.PlayerId == PirateTarget)
         {
@@ -133,7 +131,7 @@ internal class Pirate : RoleBase
     }
     public override void AfterMeetingTasks()
     {
-        var pirateId = playerIdList.ToArray().FirstOrDefault();
+        var pirateId = _state.PlayerId;
         if (PirateTarget != byte.MaxValue)
         {
             if (DuelDone[pirateId])
@@ -170,7 +168,7 @@ internal class Pirate : RoleBase
         DuelDone.Clear();
         PirateTarget = byte.MaxValue;
         SendRPC(operate: 1, target: byte.MaxValue, points: NumWin);
-        foreach (byte playerId in playerIdList) { DuelDone.Add(playerId, false); }
+        foreach (byte playerId in Main.PlayerStates.Values.Where(x => x.MainRole == CustomRoles.Pirate).Select(x => x.PlayerId)) { DuelDone.Add(playerId, false); }
     }
 
     public static bool DuelCheckMsg(PlayerControl pc, string msg, bool isUI = false)
@@ -330,7 +328,7 @@ internal class Pirate : RoleBase
                 msg += " ";
                 msg += rd.Next(0, 3).ToString();
             }
-            var player = Main.AllAlivePlayerControls.ToArray()[rd.Next(0, Main.AllAlivePlayerControls.Length)];
+            var player = Main.AllAlivePlayerControls.RandomElement();
             DestroyableSingleton<HudManager>.Instance.Chat.AddChat(player, msg);
             var writer = CustomRpcSender.Create("MessagesToSend", SendOption.None);
             writer.StartMessage(-1);

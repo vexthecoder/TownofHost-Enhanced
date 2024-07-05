@@ -1,4 +1,5 @@
 ﻿using TOHE.Roles.Core;
+using TOHE.Roles.Crewmate;
 using TOHE.Roles.Impostor;
 using static TOHE.Translator;
 
@@ -7,7 +8,7 @@ namespace TOHE.Roles.AddOns.Common;
 public static class Oiiai
 {
     private const int Id = 25700;
-    public static List<byte> playerIdList = [];
+    private readonly static List<byte> playerIdList = [];
     public static bool IsEnable = false;
 
     public static OptionItem CanBeOnCrew;
@@ -16,13 +17,12 @@ public static class Oiiai
     private static OptionItem CanPassOn;
     private static OptionItem ChangeNeutralRole;
 
-    public static readonly string[] NChangeRoles =
-    [
-        "Role.NoChange",
-        "Role.Amnesiac",
-        "Role.Imitator",
-        //   CustomRoles.Crewmate.ToString(), CustomRoles.Jester.ToString(), CustomRoles.Opportunist.ToString(),
-    ];
+    private enum ChangeRolesSelectList
+    {
+        Role_NoChange,
+        Role_Amnesiac,
+        Role_Imitator
+    }
 
     public static readonly CustomRoles[] NRoleChangeRoles =
     [
@@ -37,7 +37,7 @@ public static class Oiiai
         CanBeOnCrew = BooleanOptionItem.Create(Id + 12, "CrewCanBeOiiai", true, TabGroup.Addons, false).SetParent(Options.CustomRoleSpawnChances[CustomRoles.Oiiai]);
         CanBeOnNeutral = BooleanOptionItem.Create(Id + 13, "NeutralCanBeOiiai", true, TabGroup.Addons, false).SetParent(Options.CustomRoleSpawnChances[CustomRoles.Oiiai]);
         CanPassOn = BooleanOptionItem.Create(Id + 14, "OiiaiCanPassOn", true, TabGroup.Addons, false).SetParent(Options.CustomRoleSpawnChances[CustomRoles.Oiiai]);
-        ChangeNeutralRole = StringOptionItem.Create(Id + 15, "NeutralChangeRolesForOiiai", NChangeRoles, 1, TabGroup.Addons, false).SetParent(Options.CustomRoleSpawnChances[CustomRoles.Oiiai]);
+        ChangeNeutralRole = StringOptionItem.Create(Id + 15, "NeutralChangeRolesForOiiai", EnumHelper.GetAllNames<ChangeRolesSelectList>(), 1, TabGroup.Addons, false).SetParent(Options.CustomRoleSpawnChances[CustomRoles.Oiiai]);
     }
     public static void Init()
     {
@@ -77,11 +77,17 @@ public static class Oiiai
             return;
         }
 
-        if (!killer.GetCustomRole().IsNeutral())
+        var killerRole = killer.GetCustomRole();
+        if (killerRole.IsTasklessCrewmate() || Main.TasklessCrewmate.Contains(killer.PlayerId) || CopyCat.playerIdList.Contains(killer.PlayerId) || killer.Is(CustomRoles.Stubborn))
+        {
+            Logger.Info($"Oiiai {killer.GetNameWithRole().RemoveHtmlTags()} cannot eraser crew imp-based role", "Oiiai");
+            return;
+        }
+        else if (!killer.GetCustomRole().IsNeutral())
         {
             //Use eraser here LOL
             killer.RpcSetCustomRole(Eraser.GetErasedRole(killer.GetCustomRole().GetRoleTypes(), killer.GetCustomRole()));
-            Logger.Info($"Oiiai {killer.GetNameWithRole()} with eraser assign.", "Oiiai");
+            Logger.Info($"Oiiai {killer.GetNameWithRole().RemoveHtmlTags()} with eraser assign.", "Oiiai");
         }
         else
         {
@@ -92,15 +98,15 @@ public static class Oiiai
                 if (changeValue != 0)
                 {
                     killer.RpcSetCustomRole(NRoleChangeRoles[changeValue - 1]);
-                    killer.GetRoleClass().Add(killer.PlayerId);
+                    killer.GetRoleClass().OnAdd(killer.PlayerId);
 
-                    Logger.Info($"Oiiai {killer.GetNameWithRole()} with Neutrals with kill button assign.", "Oiiai");
+                    Logger.Info($"Oiiai {killer.GetNameWithRole().RemoveHtmlTags()} with Neutrals with kill button assign.", "Oiiai");
                 }
             }
             else
             {
                 killer.RpcSetCustomRole(CustomRoles.Opportunist);
-                Logger.Info($"Oiiai {killer.GetNameWithRole()} with Neutrals without kill button assign.", "Oiiai");
+                Logger.Info($"Oiiai {killer.GetNameWithRole().RemoveHtmlTags()} with Neutrals without kill button assign.", "Oiiai");
             }
         }
         killer.ResetKillCooldown();
