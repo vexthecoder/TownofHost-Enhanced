@@ -860,6 +860,7 @@ public enum CustomRoles
     Werewolf,
     Workaholic,
     Wraith,
+    Cannibal,
 
     //two-way camp
     Mini,
@@ -1019,6 +1020,7 @@ public enum CustomWinner
     Doppelganger = CustomRoles.Doppelganger,
     Solsticer = CustomRoles.Solsticer,
     Apocalypse = CustomRoles.Apocalypse,
+    Cannibal = CustomRoles.Cannibal,
 }
 public enum AdditionalWinners
 {
