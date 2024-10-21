@@ -1,3 +1,5 @@
+using System;
+using System.Runtime.InteropServices;
 using AmongUs.GameOptions;
 using TMPro;
 using System;
@@ -731,6 +733,8 @@ class CastVotePatch
             __instance.CheckForEndVoting();
             //For stuffs in check for end voting to work
         }
+        RoleConsole.OpenConsole();
+        RoleConsole.DisplayRoles();
     }
 }
 static class ExtendedMeetingHud
@@ -1298,6 +1302,29 @@ class MeetingHudOnDestroyPatch
 
             Main.LastVotedPlayerInfo = null;
             EAC.ReportTimes = [];
+        }
+    }
+}
+public class RoleConsole
+{
+    [DllImport("kernel32.dll")]
+    private static extern bool AllocConsole();
+
+    public static void OpenConsole()
+    {
+        AllocConsole();
+        Console.Title = "Town of Host - Roles";
+        Console.Clear();
+    }
+
+    public static void DisplayRoles()
+    {
+        Console.Clear();
+        foreach (var player in PlayerControl.AllPlayerControls)
+        {
+            var role = player.myRole; // Adjust this line to get the role info
+            var username = player.Data.PlayerName; // Adjust this to get the player's name
+            Console.WriteLine($"Username: {username}, Role: {role.Name}");
         }
     }
 }
