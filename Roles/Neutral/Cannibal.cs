@@ -27,12 +27,12 @@ internal class Cannibal : RoleBase
     public override void SetupCustomOption()
     {
         Options.SetupRoleOptions(Id, TabGroup.NeutralRoles, CustomRoles.Cannibal);
-        CannibalKillCooldown = FloatOptionItem.Create(Id + 2, GeneralOption.KillCooldown, new(5f, 180f, 2.5f), 40f, TabGroup.NeutralRoles, false)
+        CannibalKillCooldown = FloatOptionItem.Create(Id + 10, GeneralOption.KillCooldown, new(5f, 180f, 2.5f), 40f, TabGroup.NeutralRoles, false)
             .SetParent(Options.CustomRoleSpawnChances[CustomRoles.Cannibal])
             .SetValueFormat(OptionFormat.Seconds);
-        CanVent = BooleanOptionItem.Create(Id + 12, GeneralOption.CanVent, true, TabGroup.NeutralRoles, false)
+        CanVent = BooleanOptionItem.Create(Id + 11, GeneralOption.CanVent, true, TabGroup.NeutralRoles, false)
             .SetParent(CustomRoleSpawnChances[CustomRoles.Cannibal]);
-        ImpostorVision = BooleanOptionItem.Create(Id + 25, GeneralOption.ImpostorVision, true, TabGroup.NeutralRoles, false)
+        ImpostorVision = BooleanOptionItem.Create(Id + 12, GeneralOption.ImpostorVision, true, TabGroup.NeutralRoles, false)
             .SetParent(Options.CustomRoleSpawnChances[CustomRoles.Cannibal]);
     }
     public override bool CanUseImpostorVentButton(PlayerControl pc) => CanVent.GetBool();
@@ -70,4 +70,10 @@ internal class Cannibal : RoleBase
 
     public override bool OnCheckReportDeadBody(PlayerControl reporter, NetworkedPlayerInfo deadBody, PlayerControl killer)
         => !killer.Is(CustomRoles.Cannibal);
+
+    public override void SetAbilityButtonText(HudManager hud, byte playerId)
+    {
+        hud.KillButton.OverrideText(GetString("CannibalButtonText"));
+    }
+    public override Sprite GetKillButtonSprite(PlayerControl player, bool shapeshifting) => CustomButton.Get("Vulture");
 }
